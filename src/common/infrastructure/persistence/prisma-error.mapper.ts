@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import {
+  DomainErrorCategory,
   DomainException,
   DuplicateEntityException,
   EntityNotFoundException,
@@ -45,7 +46,7 @@ export class PrismaErrorMapper {
     if (error instanceof Prisma.PrismaClientValidationError) {
       return new DomainException(
         `Validation error for ${entityName}: ${error.message}`,
-        400,
+        DomainErrorCategory.VALIDATION,
         'PRISMA_VALIDATION_ERROR',
       );
     }
@@ -55,7 +56,7 @@ export class PrismaErrorMapper {
       error instanceof Error ? error.message : 'Unknown database error';
     return new DomainException(
       `Database error for ${entityName}: ${message}`,
-      500,
+      DomainErrorCategory.INTERNAL,
       'DATABASE_ERROR',
     );
   }
@@ -95,7 +96,7 @@ export class PrismaErrorMapper {
         // Invalid ObjectId format
         return new DomainException(
           `Invalid ID format for ${entityName}. Expected a valid MongoDB ObjectId.`,
-          400,
+          DomainErrorCategory.VALIDATION,
           'INVALID_ID_FORMAT',
         );
       }
@@ -103,7 +104,7 @@ export class PrismaErrorMapper {
       default: {
         return new DomainException(
           `Database error for ${entityName}: ${error.message} (code: ${error.code})`,
-          500,
+          DomainErrorCategory.INTERNAL,
           `PRISMA_${error.code}`,
         );
       }

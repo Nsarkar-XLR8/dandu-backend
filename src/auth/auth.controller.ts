@@ -7,6 +7,7 @@ import {
   Query,
   Res,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -21,6 +22,17 @@ import {
 import type { Request, Response } from 'express';
 import { CustomLoggerService } from '../common/services/custom-logger.service';
 import { THROTTLER_CONFIG } from '../common/config/throttler.config';
+import { AuthGuard } from '../common/guards/auth.guard';
+
+interface AuthenticatedRequest extends Request {
+  user: { userId: string; role: string; tokenVersion: number };
+}
+
+interface RequestMetadata {
+  ip: string;
+  userAgent: string;
+  device?: string;
+}
 
 @ApiTags('auth')
 @Controller('auth')
@@ -39,20 +51,7 @@ export class AuthController {
       `Registration attempt for email: ${payload.email}`,
       'AuthController',
     );
-    const meta = {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-      device:
-        (Array.isArray(req.headers['x-device'])
-          ? req.headers['x-device'][0]
-          : req.headers['x-device']) ||
-        (Array.isArray(req.headers['x-device-id'])
-          ? req.headers['x-device-id'][0]
-          : req.headers['x-device-id']) ||
-        (Array.isArray(req.headers['sec-ch-ua-platform'])
-          ? req.headers['sec-ch-ua-platform'][0]
-          : req.headers['sec-ch-ua-platform']),
-    };
+    const meta = this.extractRequestMetadata(req);
     return this.authService.create(payload, meta);
   }
 
@@ -68,10 +67,7 @@ export class AuthController {
       `Email verification attempt for: ${email}`,
       'AuthController',
     );
-    const meta = {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-    };
+    const meta = this.extractRequestMetadata(req, false);
     return this.authService.verifyEmail(email, code, meta);
   }
 
@@ -79,10 +75,7 @@ export class AuthController {
   @Throttle({ default: THROTTLER_CONFIG.AUTH })
   @Post('resend-verification-email')
   resendVerificationEmail(@Body('email') email: string, @Req() req: Request) {
-    const meta = {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-    };
+    const meta = this.extractRequestMetadata(req, false);
     return this.authService.resendVerificationEmail(email, meta);
   }
 
@@ -107,10 +100,7 @@ export class AuthController {
       'AuthController',
     );
 
-    const meta = {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-    };
+    const meta = this.extractRequestMetadata(req, false);
 
     const { url, state } = await this.googleOAuthService.getAuthorizationUrl(
       meta,
@@ -172,20 +162,7 @@ export class AuthController {
     this.customLogger.log('Google OAuth callback received', 'AuthController');
     Logger.log('Google OAuth callback received', 'AuthController');
 
-    const meta = {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-      device:
-        (Array.isArray(req.headers['x-device'])
-          ? req.headers['x-device'][0]
-          : req.headers['x-device']) ||
-        (Array.isArray(req.headers['x-device-id'])
-          ? req.headers['x-device-id'][0]
-          : req.headers['x-device-id']) ||
-        (Array.isArray(req.headers['sec-ch-ua-platform'])
-          ? req.headers['sec-ch-ua-platform'][0]
-          : req.headers['sec-ch-ua-platform']),
-    };
+    const meta = this.extractRequestMetadata(req);
 
     const result = await this.googleOAuthService.handleCallback(
       code,
@@ -193,14 +170,17 @@ export class AuthController {
       meta,
     );
 
-    // If redirectUrl is provided, redirect to it with tokens as query params
+    // If redirectUrl is provided, put tokens in the fragment so they are not
+    // sent back to servers in request URLs or Referer headers.
     if (result.redirectUrl) {
       const redirectUrl = new URL(result.redirectUrl);
-      redirectUrl.searchParams.set('access_token', result.accessToken);
-      redirectUrl.searchParams.set('refresh_token', result.refreshToken);
-      redirectUrl.searchParams.set('user_id', result.user.id);
-      redirectUrl.searchParams.set('email', result.user.email);
-      redirectUrl.searchParams.set('is_new_user', result.isNewUser.toString());
+      redirectUrl.hash = new URLSearchParams({
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
+        user_id: result.user.id,
+        email: result.user.email,
+        is_new_user: result.isNewUser.toString(),
+      }).toString();
 
       return res.redirect(redirectUrl.toString());
     }
@@ -229,20 +209,7 @@ export class AuthController {
       'AuthController',
     );
 
-    const meta = {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-      device:
-        (Array.isArray(req.headers['x-device'])
-          ? req.headers['x-device'][0]
-          : req.headers['x-device']) ||
-        (Array.isArray(req.headers['x-device-id'])
-          ? req.headers['x-device-id'][0]
-          : req.headers['x-device-id']) ||
-        (Array.isArray(req.headers['sec-ch-ua-platform'])
-          ? req.headers['sec-ch-ua-platform'][0]
-          : req.headers['sec-ch-ua-platform']),
-    };
+    const meta = this.extractRequestMetadata(req);
 
     const result = await this.googleOAuthService.handleCallback(
       body.code,
@@ -279,20 +246,7 @@ export class AuthController {
       'AuthController',
     );
 
-    const meta = {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-      device:
-        (Array.isArray(req.headers['x-device'])
-          ? req.headers['x-device'][0]
-          : req.headers['x-device']) ||
-        (Array.isArray(req.headers['x-device-id'])
-          ? req.headers['x-device-id'][0]
-          : req.headers['x-device-id']) ||
-        (Array.isArray(req.headers['sec-ch-ua-platform'])
-          ? req.headers['sec-ch-ua-platform'][0]
-          : req.headers['sec-ch-ua-platform']),
-    };
+    const meta = this.extractRequestMetadata(req);
 
     const result = await this.authService.login({ email, password }, meta);
 
@@ -313,20 +267,7 @@ export class AuthController {
   ) {
     this.customLogger.log('Token refresh requested', 'AuthController');
 
-    const meta = {
-      ip: req.ip || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-      device:
-        (Array.isArray(req.headers['x-device'])
-          ? req.headers['x-device'][0]
-          : req.headers['x-device']) ||
-        (Array.isArray(req.headers['x-device-id'])
-          ? req.headers['x-device-id'][0]
-          : req.headers['x-device-id']) ||
-        (Array.isArray(req.headers['sec-ch-ua-platform'])
-          ? req.headers['sec-ch-ua-platform'][0]
-          : req.headers['sec-ch-ua-platform']),
-    };
+    const meta = this.extractRequestMetadata(req);
 
     const result = await this.authService.refreshToken(refreshToken, meta);
 
@@ -340,16 +281,15 @@ export class AuthController {
   /**
    * Logout current session
    */
+  @UseGuards(AuthGuard)
   @Post('logout')
   async logout(
     @Body('refreshToken') refreshToken: string,
-    @Body('userId') userId: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
   ) {
     this.customLogger.log('Logout requested', 'AuthController');
 
-    const result = await this.authService.logout(refreshToken, userId);
+    const result = await this.authService.logout(refreshToken, req.user.userId);
 
     return {
       success: true,
@@ -360,18 +300,44 @@ export class AuthController {
   /**
    * Logout from all devices
    */
+  @UseGuards(AuthGuard)
   @Post('logout-all')
-  async logoutAll(@Body('userId') userId: string) {
+  async logoutAll(@Req() req: AuthenticatedRequest) {
     this.customLogger.log(
-      `Logout all devices requested for user: ${userId}`,
+      `Logout all devices requested for user: ${req.user.userId}`,
       'AuthController',
     );
 
-    const result = await this.authService.logoutAllDevices(userId);
+    const result = await this.authService.logoutAllDevices(req.user.userId);
 
     return {
       success: true,
       ...result,
     };
+  }
+
+  private extractRequestMetadata(
+    req: Request,
+    includeDevice = true,
+  ): RequestMetadata {
+    const meta: RequestMetadata = {
+      ip: req.ip || 'unknown',
+      userAgent: this.firstHeaderValue(req.headers['user-agent']) || 'unknown',
+    };
+
+    if (includeDevice) {
+      meta.device =
+        this.firstHeaderValue(req.headers['x-device']) ||
+        this.firstHeaderValue(req.headers['x-device-id']) ||
+        this.firstHeaderValue(req.headers['sec-ch-ua-platform']);
+    }
+
+    return meta;
+  }
+
+  private firstHeaderValue(
+    value: Request['headers'][string],
+  ): string | undefined {
+    return Array.isArray(value) ? value[0] : value;
   }
 }

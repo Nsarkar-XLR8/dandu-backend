@@ -2,13 +2,14 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import config from '../config/app.config';
 import { EmailService } from '../services/email.service';
-import { PrismaService } from '../services/prisma.service';
 import { EmailQueueService } from '../queues/email/email.queue';
 import { EmailProcessor } from '../queues/email/email.processor';
 import { EMAIL_SENDER_TOKEN } from '../domain/interfaces/email-sender.interface';
+import { PrismaModule } from './prisma.module';
 
 @Module({
   imports: [
+    PrismaModule,
     BullModule.forRoot({
       connection: {
         host: process.env.REDIS_HOST || 'localhost',
@@ -27,7 +28,6 @@ import { EMAIL_SENDER_TOKEN } from '../domain/interfaces/email-sender.interface'
     { provide: EMAIL_SENDER_TOKEN, useExisting: EmailQueueService },
     EmailProcessor,
     EmailService,
-    PrismaService,
   ],
   exports: [EmailQueueService, EMAIL_SENDER_TOKEN],
 })

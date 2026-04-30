@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 import { Response } from 'express';
-import httpStatus from 'http-status';
 import config from '../../common/config/app.config';
 import {
   IAccessTokenPayload,
@@ -65,10 +64,7 @@ export class AuthUtilsService {
   ): string {
     const secret = config.jwt_access_secret;
     if (!secret) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        'JWT access secret is not configured',
-      );
+      throw AppError.internalServerError('JWT access secret is not configured');
     }
 
     const signOptions: SignOptions = {
@@ -89,8 +85,7 @@ export class AuthUtilsService {
   ): string {
     const secret = config.jwt_refresh_secret;
     if (!secret) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
+      throw AppError.internalServerError(
         'JWT refresh secret is not configured',
       );
     }
@@ -121,10 +116,7 @@ export class AuthUtilsService {
     };
 
     if (!secret) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        'JWT secret is not configured',
-      );
+      throw AppError.internalServerError('JWT secret is not configured');
     }
 
     return jwt.sign(payload, secret, signOptions);
@@ -136,10 +128,7 @@ export class AuthUtilsService {
   verifyAccessToken(token: string): IAccessTokenPayload & JwtPayload {
     const secret = config.jwt_access_secret;
     if (!secret) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        'JWT access secret is not configured',
-      );
+      throw AppError.internalServerError('JWT access secret is not configured');
     }
     return jwt.verify(token, secret) as IAccessTokenPayload & JwtPayload;
   }
@@ -150,8 +139,7 @@ export class AuthUtilsService {
   verifyRefreshToken(token: string): IRefreshTokenPayload & JwtPayload {
     const secret = config.jwt_refresh_secret;
     if (!secret) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
+      throw AppError.internalServerError(
         'JWT refresh secret is not configured',
       );
     }
@@ -165,10 +153,7 @@ export class AuthUtilsService {
   verifyToken(token: string): JwtPayload {
     const secret = config.jwt_access_secret;
     if (!secret) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        'JWT secret is not configured',
-      );
+      throw AppError.internalServerError('JWT secret is not configured');
     }
     return jwt.verify(token, secret) as JwtPayload;
   }
@@ -207,8 +192,7 @@ export class AuthUtilsService {
     // First check if we're in a locked state
     const isLocked = await this.cacheStore.exists(lockKey);
     if (isLocked) {
-      throw new AppError(
-        httpStatus.TOO_MANY_REQUESTS,
+      throw AppError.tooManyRequests(
         `Rate limit exceeded. Please try again after ${windowMs / 1000} seconds.`,
       );
     }
@@ -224,8 +208,7 @@ export class AuthUtilsService {
     if (currentAttempts && currentAttempts > maxAttempts) {
       // Set a lock with TTL instead of continuing to increment
       await this.cacheStore.set(lockKey, '1', windowMs / 1000);
-      throw new AppError(
-        httpStatus.TOO_MANY_REQUESTS,
+      throw AppError.tooManyRequests(
         `Rate limit exceeded. Please try again after ${windowMs / 1000} seconds.`,
       );
     }

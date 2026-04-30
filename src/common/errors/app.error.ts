@@ -1,4 +1,7 @@
-import { DomainException } from '../domain/exceptions/domain.exception';
+import {
+  DomainErrorCategory,
+  DomainException,
+} from '../domain/exceptions/domain.exception';
 
 /**
  * Custom Application Error class
@@ -8,8 +11,13 @@ import { DomainException } from '../domain/exceptions/domain.exception';
 class AppError extends DomainException {
   public readonly errors?: unknown;
 
-  constructor(statusCode: number, message: string, errors?: unknown) {
-    super(message, statusCode, 'APPLICATION_ERROR');
+  constructor(
+    category: DomainErrorCategory,
+    message: string,
+    errors?: unknown,
+    code: string = 'APPLICATION_ERROR',
+  ) {
+    super(message, category, code);
     this.errors = errors;
   }
 
@@ -18,37 +26,37 @@ class AppError extends DomainException {
     errors?: unknown,
     code?: string,
   ): AppError {
-    return new AppError(400, message, { errors, code });
+    return new AppError(DomainErrorCategory.VALIDATION, message, errors, code);
   }
 
   static unauthorized(message: string = 'Unauthorized'): AppError {
-    return new AppError(401, message);
+    return new AppError(DomainErrorCategory.AUTHENTICATION, message);
   }
 
   static forbidden(message: string = 'Forbidden'): AppError {
-    return new AppError(403, message);
+    return new AppError(DomainErrorCategory.AUTHORIZATION, message);
   }
 
   static notFound(message: string = 'Not Found'): AppError {
-    return new AppError(404, message);
+    return new AppError(DomainErrorCategory.NOT_FOUND, message);
   }
 
   static conflict(message: string, errors?: unknown): AppError {
-    return new AppError(409, message, errors);
+    return new AppError(DomainErrorCategory.CONFLICT, message, errors);
   }
 
   static internalServerError(
     message: string = 'Internal Server Error',
   ): AppError {
-    return new AppError(500, message);
+    return new AppError(DomainErrorCategory.INTERNAL, message);
   }
 
   static tooManyRequests(message: string = 'Too Many Requests'): AppError {
-    return new AppError(429, message);
+    return new AppError(DomainErrorCategory.RATE_LIMIT, message);
   }
 
   static serviceUnavailable(message: string = 'Service Unavailable'): AppError {
-    return new AppError(503, message);
+    return new AppError(DomainErrorCategory.SERVICE_UNAVAILABLE, message);
   }
 }
 

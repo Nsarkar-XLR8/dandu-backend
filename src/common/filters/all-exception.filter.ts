@@ -9,7 +9,10 @@ import {
 import { Response, Request } from 'express';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
-import { DomainException } from '../domain/exceptions/domain.exception';
+import {
+  DomainErrorCategory,
+  DomainException,
+} from '../domain/exceptions/domain.exception';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -57,7 +60,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (exception instanceof DomainException) {
-      statusCode = exception.httpStatus;
+      statusCode = this.mapDomainErrorToHttpStatus(exception.category);
       message = exception.message;
       error = exception.code;
     }
@@ -95,5 +98,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
           ? exception.stack
           : null,
     });
+  }
+
+  private mapDomainErrorToHttpStatus(category: DomainErrorCategory): number {
+    switch (category) {
+      case DomainErrorCategory.VALIDATION:
+        return HttpStatus.BAD_REQUEST;
+      case DomainErrorCategory.AUTHENTICATION:
+        return HttpStatus.UNAUTHORIZED;
+      case DomainErrorCategory.AUTHORIZATION:
+        return HttpStatus.FORBIDDEN;
+      case DomainErrorCategory.NOT_FOUND:
+        return HttpStatus.NOT_FOUND;
+      case DomainErrorCategory.CONFLICT:
+        return HttpStatus.CONFLICT;
+      case DomainErrorCategory.RATE_LIMIT:
+        return HttpStatus.TOO_MANY_REQUESTS;
+      case DomainErrorCategory.SERVICE_UNAVAILABLE:
+        return HttpStatus.SERVICE_UNAVAILABLE;
+      case DomainErrorCategory.INTERNAL:
+      default:
+        return HttpStatus.INTERNAL_SERVER_ERROR;
+    }
   }
 }

@@ -15,7 +15,16 @@ interface AppConfig {
   google_client_id: string;
   google_client_secret: string;
   google_redirect_uri: string;
+  cors_origins: string[];
 }
+
+const parseCsv = (value?: string): string[] =>
+  value
+    ? value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
 
 const config: AppConfig = {
   jwt_access_secret:
@@ -34,6 +43,7 @@ const config: AppConfig = {
   google_client_id: process.env.GOOGLE_CLIENT_ID || '',
   google_client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
   google_redirect_uri: process.env.GOOGLE_REDIRECT_URI || '',
+  cors_origins: parseCsv(process.env.CORS_ORIGINS),
 };
 
 export default config;

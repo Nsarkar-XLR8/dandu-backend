@@ -6,6 +6,7 @@ import { GoogleOAuthService } from './services/google-oauth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import type { Request } from 'express';
 import { CustomLoggerService } from '../common/services/custom-logger.service';
+import { AuthGuard } from '../common/guards/auth.guard';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -14,6 +15,10 @@ describe('AuthController', () => {
     create: jest.fn(),
     verifyEmail: jest.fn(),
     resendVerificationEmail: jest.fn(),
+    login: jest.fn(),
+    refreshToken: jest.fn(),
+    logout: jest.fn(),
+    logoutAllDevices: jest.fn(),
   };
 
   const mockAuthUtilsService = {
@@ -60,7 +65,10 @@ describe('AuthController', () => {
           useValue: mockCustomLoggerService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
 
     controller = module.get<AuthController>(AuthController);
   });
@@ -303,6 +311,101 @@ describe('AuthController', () => {
         controller.resendVerificationEmail(email, mockRequest),
       ).rejects.toThrow('User not found');
       expect(mockAuthService.resendVerificationEmail).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('googleOAuthCallback', () => {
+    it('should place redirect tokens in the URL fragment', async () => {
+      const mockRequest = {
+        ip: '127.0.0.1',
+        headers: {
+          'user-agent': 'Jest Test Agent',
+          'x-device': 'test-device',
+        },
+      } as unknown as Request;
+      const mockResponse = {
+        redirect: jest.fn(),
+      } as unknown as { redirect: jest.Mock };
+
+      mockGoogleOAuthService.handleCallback.mockResolvedValue({
+        redirectUrl: 'https://app.example.com/callback?from=google',
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        user: { id: 'user-1', email: 'test@example.com' },
+        isNewUser: false,
+      });
+
+      await controller.googleOAuthCallback(
+        'code',
+        'state',
+        '',
+        '',
+        mockRequest,
+        mockResponse as never,
+      );
+
+      expect(mockResponse.redirect).toHaveBeenCalledTimes(1);
+      const redirectedUrl = new URL(mockResponse.redirect.mock.calls[0][0]);
+
+      expect(redirectedUrl.searchParams.get('from')).toBe('google');
+      expect(redirectedUrl.searchParams.has('access_token')).toBe(false);
+      expect(redirectedUrl.searchParams.has('refresh_token')).toBe(false);
+
+      const fragment = new URLSearchParams(redirectedUrl.hash.slice(1));
+      expect(fragment.get('access_token')).toBe('access-token');
+      expect(fragment.get('refresh_token')).toBe('refresh-token');
+      expect(fragment.get('user_id')).toBe('user-1');
+      expect(fragment.get('email')).toBe('test@example.com');
+      expect(fragment.get('is_new_user')).toBe('false');
+    });
+  });
+
+  describe('logout', () => {
+    it('should use the authenticated user id instead of a body supplied id', async () => {
+      const mockRequest = {
+        user: { userId: 'auth-user-1', role: 'USER', tokenVersion: 1 },
+      } as Request & {
+        user: { userId: string; role: string; tokenVersion: number };
+      };
+
+      mockAuthService.logout.mockResolvedValue({
+        message: 'Logged out successfully',
+      });
+
+      const result = await controller.logout('refresh-token', mockRequest);
+
+      expect(mockAuthService.logout).toHaveBeenCalledWith(
+        'refresh-token',
+        'auth-user-1',
+      );
+      expect(result).toEqual({
+        success: true,
+        message: 'Logged out successfully',
+      });
+    });
+  });
+
+  describe('logoutAll', () => {
+    it('should revoke sessions for the authenticated user id only', async () => {
+      const mockRequest = {
+        user: { userId: 'auth-user-1', role: 'USER', tokenVersion: 1 },
+      } as Request & {
+        user: { userId: string; role: string; tokenVersion: number };
+      };
+
+      mockAuthService.logoutAllDevices.mockResolvedValue({
+        message: 'Logged out from all devices successfully',
+      });
+
+      const result = await controller.logoutAll(mockRequest);
+
+      expect(mockAuthService.logoutAllDevices).toHaveBeenCalledWith(
+        'auth-user-1',
+      );
+      expect(result).toEqual({
+        success: true,
+        message: 'Logged out from all devices successfully',
+      });
     });
   });
 });

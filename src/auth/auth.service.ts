@@ -37,6 +37,9 @@ import { AuthUtilsService } from './services/auth-utils.service';
 
 @Injectable()
 export class AuthService {
+  private static readonly DUMMY_PASSWORD_HASH =
+    '$2b$12$/1ViEnMS3JJ99L.OpLR8pu/iUhTO4gm.segG0raYko6GET68t0MZq';
+
   constructor(
     private readonly authUtilsService: AuthUtilsService,
     private readonly activityLogService: ActivityLogService,
@@ -456,12 +459,12 @@ export class AuthService {
     // CRITICAL: Timing attack prevention
     // Always run bcrypt.compare even if user doesn't exist
     // This ensures consistent response time regardless of user existence
-    const fakePasswordHash =
-      '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G4.4.G4.G4.G4.G';
-
     if (!user) {
       // Run fake bcrypt to prevent timing attacks (~200ms)
-      await this.passwordHasher.compare(password, fakePasswordHash);
+      await this.passwordHasher.compare(
+        password,
+        AuthService.DUMMY_PASSWORD_HASH,
+      );
 
       // Log failed attempt (fire-and-forget)
       void this.logLoginAttempt({
@@ -1026,56 +1029,6 @@ export class AuthService {
           'AuthService',
         );
       });
-  }
-
-  private async handleMissingLoginUserFailure(
-    password: string,
-    fakePasswordHash: string,
-    ip: string,
-    userAgent: string,
-    device?: string,
-  ): Promise<void> {
-    await this.passwordHasher.compare(password, fakePasswordHash);
-    void this.logLoginAttempt({
-      authId: null,
-      ip,
-      userAgent,
-      device,
-      success: false,
-      failureReason: 'user_not_found',
-    });
-  }
-
-  private throwOAuthLoginRequired(provider: string): never {
-    throw AppError.badRequest(`Please login using ${provider} authentication`);
-  }
-
-  private handleBlockedLoginFailure(
-    userId: string,
-    status: string,
-    ip: string,
-    userAgent: string,
-    device?: string,
-  ): Promise<void> {
-    void this.logLoginAttempt({
-      authId: userId,
-      ip,
-      userAgent,
-      device,
-      success: false,
-      failureReason: `account_${status.toLowerCase()}`,
-    });
-
-    throw AppError.forbidden(
-      `Your account has been ${status.toLowerCase()}. Please contact support.`,
-    );
-  }
-
-  private async handleInactiveLoginFailure(
-    password: string,
-    currentPassword: string,
-  ): Promise<void> {
-    await this.passwordHasher.compare(password, currentPassword);
   }
 
   private handleLockedLoginFailure(

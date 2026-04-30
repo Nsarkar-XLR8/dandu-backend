@@ -3,10 +3,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { AuthUtilsService } from './services/auth-utils.service';
 import { GoogleOAuthService } from './services/google-oauth.service';
-import { PrismaService } from '../common/services/prisma.service';
 import { ActivityLogService } from '../common/services/activity-log.service';
-import { EmailService } from '../common/services/email.service';
-import { RedisService } from '../common/services/redis.service';
 import { QueueModule } from '../common/modules';
 
 // Repository injection tokens
@@ -26,19 +23,14 @@ import { PrismaEmailHistoryRepository } from './infrastructure/persistence/prism
 import { PrismaUserProfileRepository } from './infrastructure/persistence/prisma-user-profile.repository';
 import { PrismaUnitOfWork } from '../common/infrastructure/persistence/prisma-unit-of-work';
 import { PrismaActivityLogRepository } from '../common/infrastructure/persistence/prisma-activity-log.repository';
-import { CACHE_STORE_TOKEN } from '../common/domain/interfaces/cache-store.interface';
 import { PASSWORD_HASHER_TOKEN } from '../common/domain/interfaces/password-hasher.interface';
 import { BcryptPasswordHasher } from '../common/infrastructure/security/bcrypt-password-hasher';
 
 /**
  * Auth Module — Hexagonal Architecture Wiring
  *
- * The AuthService still uses PrismaService directly for backward compatibility
- * in this phase. Repository ports are provided for the AuthGuard and for
- * services that have been refactored.
- *
- * Full AuthService refactoring to use repository ports can be done
- * incrementally — the ports are already available for injection.
+ * Application services depend on ports. Infrastructure adapters are bound here,
+ * while shared database/cache clients are provided once by global common modules.
  */
 @Module({
   imports: [QueueModule],
@@ -47,12 +39,8 @@ import { BcryptPasswordHasher } from '../common/infrastructure/security/bcrypt-p
     AuthService,
     AuthUtilsService,
     GoogleOAuthService,
-    PrismaService,
     ActivityLogService,
-    EmailService,
-    RedisService,
     BcryptPasswordHasher,
-    { provide: CACHE_STORE_TOKEN, useExisting: RedisService },
     { provide: PASSWORD_HASHER_TOKEN, useExisting: BcryptPasswordHasher },
     // Port → Adapter bindings
     { provide: AUTH_USER_REPOSITORY_TOKEN, useClass: PrismaAuthUserRepository },

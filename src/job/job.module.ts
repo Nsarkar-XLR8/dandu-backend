@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JobController } from './infrastructure/controllers/job.controller';
 import { JobService } from './application/services/job.service';
-import { PrismaService } from '../common/services/prisma.service';
-import { RedisService } from '../common/services/redis.service';
 import { AuthModule } from '../auth/auth.module';
 
 // Repository injection tokens
@@ -20,7 +18,6 @@ import { PrismaJobNoteRepository } from './infrastructure/persistence/prisma-job
 import { PrismaJobTimelineRepository } from './infrastructure/persistence/prisma-job-timeline.repository';
 import { PrismaUnitOfWork } from '../common/infrastructure/persistence/prisma-unit-of-work';
 import { PrismaActivityLogRepository } from '../common/infrastructure/persistence/prisma-activity-log.repository';
-import { CACHE_STORE_TOKEN } from '../common/domain/interfaces/cache-store.interface';
 
 /**
  * Job Module — Hexagonal Architecture Wiring
@@ -36,9 +33,6 @@ import { CACHE_STORE_TOKEN } from '../common/domain/interfaces/cache-store.inter
   controllers: [JobController],
   providers: [
     JobService,
-    PrismaService,
-    RedisService,
-    { provide: CACHE_STORE_TOKEN, useExisting: RedisService },
     // Port → Adapter bindings
     { provide: JOB_REPOSITORY_TOKEN, useClass: PrismaJobRepository },
     {

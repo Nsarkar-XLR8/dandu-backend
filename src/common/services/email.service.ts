@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import config from '../config/app.config';
 import AppError from '../errors/app.error';
-import httpStatus from 'http-status';
 import { CustomLoggerService } from './custom-logger.service';
 
 export interface EmailOptions {
@@ -89,10 +88,7 @@ export class EmailService {
       return template;
     } catch (error) {
       console.error('Error reading email template:', error);
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        'Email template loading failed.',
-      );
+      throw AppError.internalServerError('Email template loading failed.');
     }
   }
 

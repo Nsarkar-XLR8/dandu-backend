@@ -10,6 +10,7 @@ import {
 import { Logger } from 'winston';
 import helmet from 'helmet';
 import { setupSwagger } from './common/config/swagger.config';
+import config from './common/config/app.config';
 // import { AllExceptionFilter } from './common/filters/all-exception.filter';
 
 async function bootstrap() {
@@ -28,6 +29,19 @@ async function bootstrap() {
   // Check environment for Swagger setup
   const isProduction = process.env.NODE_ENV === 'production';
   const enableSwagger = process.env.ENABLE_SWAGGER !== 'false'; // Default to true
+  const corsOrigin =
+    config.cors_origins.length > 0
+      ? config.cors_origins
+      : isProduction
+        ? false
+        : true;
+
+  app.enableCors({
+    origin: corsOrigin,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Device', 'X-Device-Id'],
+  });
 
   // Security middleware - helmet helps secure Express apps by setting HTTP response headers
   // Adjust CSP for Swagger UI if enabled

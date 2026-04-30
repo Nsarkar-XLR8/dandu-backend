@@ -8,18 +8,29 @@
  * → The domain layer must not know about HTTP. These exceptions are caught by
  *   the infrastructure layer (controllers/filters) and mapped to HTTP responses.
  */
+export enum DomainErrorCategory {
+  VALIDATION = 'VALIDATION',
+  AUTHENTICATION = 'AUTHENTICATION',
+  AUTHORIZATION = 'AUTHORIZATION',
+  NOT_FOUND = 'NOT_FOUND',
+  CONFLICT = 'CONFLICT',
+  RATE_LIMIT = 'RATE_LIMIT',
+  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
+  INTERNAL = 'INTERNAL',
+}
+
 export class DomainException extends Error {
-  public readonly httpStatus: number;
+  public readonly category: DomainErrorCategory;
   public readonly code: string;
 
   constructor(
     message: string,
-    httpStatus: number = 500,
+    category: DomainErrorCategory = DomainErrorCategory.INTERNAL,
     code: string = 'DOMAIN_ERROR',
   ) {
     super(message);
     this.name = this.constructor.name;
-    this.httpStatus = httpStatus;
+    this.category = category;
     this.code = code;
     // Maintains proper stack trace for where our error was thrown (V8 engines)
     Error.captureStackTrace(this, this.constructor);
@@ -33,7 +44,7 @@ export class EntityNotFoundException extends DomainException {
   constructor(entityName: string, identifier: string) {
     super(
       `${entityName} not found with identifier: ${identifier}`,
-      404,
+      DomainErrorCategory.NOT_FOUND,
       'ENTITY_NOT_FOUND',
     );
   }
@@ -47,7 +58,7 @@ export class DuplicateEntityException extends DomainException {
   constructor(entityName: string, field: string, value: string) {
     super(
       `${entityName} with ${field} "${value}" already exists`,
-      409,
+      DomainErrorCategory.CONFLICT,
       'DUPLICATE_ENTITY',
     );
   }
@@ -61,7 +72,7 @@ export class AuthorizationException extends DomainException {
   constructor(
     message: string = 'You do not have permission to perform this action',
   ) {
-    super(message, 403, 'AUTHORIZATION_DENIED');
+    super(message, DomainErrorCategory.AUTHORIZATION, 'AUTHORIZATION_DENIED');
   }
 }
 
@@ -74,7 +85,7 @@ export class DomainValidationException extends DomainException {
   public readonly violations: ValidationViolation[];
 
   constructor(message: string, violations: ValidationViolation[] = []) {
-    super(message, 422, 'VALIDATION_FAILED');
+    super(message, DomainErrorCategory.VALIDATION, 'VALIDATION_FAILED');
     this.violations = violations;
   }
 }
@@ -86,7 +97,7 @@ export class TransactionFailedException extends DomainException {
   constructor(operation: string, reason?: string) {
     super(
       `Transaction failed during ${operation}${reason ? `: ${reason}` : ''}`,
-      500,
+      DomainErrorCategory.INTERNAL,
       'TRANSACTION_FAILED',
     );
   }
