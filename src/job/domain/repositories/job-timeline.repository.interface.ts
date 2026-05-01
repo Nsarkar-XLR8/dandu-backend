@@ -12,4 +12,4 @@ export interface IJobTimelineRepository {
   ): Promise<JobTimelineEventEntity>;
 }
 
-export const JOB_TIMELINE_REPOSITORY_TOKEN = 'IJobTimelineRepository';
+export const JOB_TIMELINE_REPOSITORY_TOKEN = Symbol('IJobTimelineRepository');

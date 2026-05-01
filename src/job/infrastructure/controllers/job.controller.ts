@@ -13,10 +13,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { JobService } from '../../application/services/job.service';
 import { AuthGuard } from '../../../common/guards/auth.guard';
+import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { userRole } from '../../../auth/interfaces/auth.interface';
 import { CustomLoggerService } from '../../../common/services/custom-logger.service';
 import { THROTTLER_CONFIG } from '../../../common/config/throttler.config';
 import {
@@ -34,8 +38,11 @@ interface AuthenticatedRequest extends Request {
   user: { userId: string; role: string; tokenVersion: number };
 }
 
+@ApiTags('Jobs')
+@ApiBearerAuth()
 @Controller('jobs')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles(userRole.CUSTOMER, userRole.ADMIN, userRole.SUPER_ADMIN)
 export class JobController {
   constructor(
     private readonly jobService: JobService,
@@ -44,6 +51,8 @@ export class JobController {
 
   @Post()
   @Throttle({ default: THROTTLER_CONFIG.DEFAULT })
+  @ApiOperation({ summary: 'Create a new job application record' })
+  @ApiResponse({ status: 201, description: 'Job successfully created' })
   async createJob(
     @Body() createJobDto: CreateJobDto,
     @Req() req: AuthenticatedRequest,
@@ -60,6 +69,8 @@ export class JobController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'Get all jobs for the authenticated user' })
+  @ApiResponse({ status: 200, description: 'List of jobs returned' })
   async findAllJobs(
     @Query() filterDto: JobFilterDto,
     @Req() req: AuthenticatedRequest,
@@ -68,11 +79,16 @@ export class JobController {
   }
 
   @Get('statistics')
+  @ApiOperation({ summary: 'Get job application statistics' })
+  @ApiResponse({ status: 200, description: 'Statistics returned successfully' })
   async getStatistics(@Req() req: AuthenticatedRequest) {
     return this.jobService.getStatistics(req.user.userId);
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Get details of a specific job' })
+  @ApiResponse({ status: 200, description: 'Job details returned' })
+  @ApiResponse({ status: 404, description: 'Job not found' })
   async findJobById(
     @Param('id') id: string,
     @Query('include') include: string,
@@ -83,6 +99,8 @@ export class JobController {
   }
 
   @Put(':id')
+  @ApiOperation({ summary: 'Fully update a job record' })
+  @ApiResponse({ status: 200, description: 'Job successfully updated' })
   async updateJob(
     @Param('id') id: string,
     @Body() updateJobDto: UpdateJobDto,
@@ -96,6 +114,8 @@ export class JobController {
   }
 
   @Patch(':id')
+  @ApiOperation({ summary: 'Partially update a job record' })
+  @ApiResponse({ status: 200, description: 'Job successfully patched' })
   async patchJob(
     @Param('id') id: string,
     @Body() updateJobDto: UpdateJobDto,

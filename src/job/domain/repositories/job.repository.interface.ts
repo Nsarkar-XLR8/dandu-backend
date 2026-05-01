@@ -113,4 +113,4 @@ export interface JobStatistics {
 /**
  * NestJS DI injection token
  */
-export const JOB_REPOSITORY_TOKEN = 'IJobRepository';
+export const JOB_REPOSITORY_TOKEN = Symbol('IJobRepository');

@@ -28,7 +28,6 @@ export function setupSwagger(app: INestApplication): void {
     )
     // Add common tags for organization
     .addTag('auth', 'Authentication and authorization endpoints')
-    .addTag('users', 'User management endpoints')
     .addTag('health', 'Health check endpoints')
     .addTag('metrics', 'Metrics and monitoring endpoints')
     .build();

@@ -20,6 +20,7 @@ export interface CreateLoginHistoryData {
   failureReason?: string;
   attemptNumber?: number;
   isSuspicious?: boolean;
+  requestId?: string;
 }
 
-export const LOGIN_HISTORY_REPOSITORY_TOKEN = 'ILoginHistoryRepository';
+export const LOGIN_HISTORY_REPOSITORY_TOKEN = Symbol('ILoginHistoryRepository');

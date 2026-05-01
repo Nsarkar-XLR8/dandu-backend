@@ -58,4 +58,4 @@ export interface ITransactionContext {
 /**
  * Injection tokens for NestJS DI
  */
-export const UNIT_OF_WORK_TOKEN = 'IUnitOfWork';
+export const UNIT_OF_WORK_TOKEN = Symbol('IUnitOfWork');

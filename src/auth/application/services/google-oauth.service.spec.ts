@@ -1,16 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { GoogleOAuthService } from './google-oauth.service';
-import { CustomLoggerService } from '../../common/services/custom-logger.service';
-import { RedisService } from '../../common/services/redis.service';
-import { PrismaService } from '../../common/services/prisma.service';
-import { ActivityLogService } from '../../common/services/activity-log.service';
+import { TokenService } from './token.service';
+import { LoginService } from './login.service';
+import { OAUTH_CLIENT_TOKEN } from '../ports/oauth-client.interface';
+import { CustomLoggerService } from '../../../common/services/custom-logger.service';
+import { RedisService } from '../../../common/services/redis.service';
+import { AppConfigService } from '../../../common/config/app-config.service';
+import { PrismaService } from '../../../common/services/prisma.service';
+import { ActivityLogService } from '../../../common/services/activity-log.service';
 import { AuthUtilsService } from './auth-utils.service';
-import { CACHE_STORE_TOKEN } from '../../common/domain/interfaces/cache-store.interface';
-import { AUTH_USER_REPOSITORY_TOKEN } from '../domain/repositories/auth-user.repository.interface';
-import { AUTH_SECURITY_REPOSITORY_TOKEN } from '../domain/repositories/auth-security.repository.interface';
-import { LOGIN_HISTORY_REPOSITORY_TOKEN } from '../domain/repositories/login-history.repository.interface';
-import { USER_PROFILE_REPOSITORY_TOKEN } from '../domain/repositories/user-profile.repository.interface';
-import { UNIT_OF_WORK_TOKEN } from '../../common/domain/interfaces/unit-of-work.interface';
+import { CACHE_STORE_TOKEN } from '../../../common/domain/interfaces/cache-store.interface';
+import { AUTH_USER_REPOSITORY_TOKEN } from '../../domain/repositories/auth-user.repository.interface';
+import { AUTH_SECURITY_REPOSITORY_TOKEN } from '../../domain/repositories/auth-security.repository.interface';
+import { LOGIN_HISTORY_REPOSITORY_TOKEN } from '../../domain/repositories/login-history.repository.interface';
+import { USER_PROFILE_REPOSITORY_TOKEN } from '../../domain/repositories/user-profile.repository.interface';
+import { UNIT_OF_WORK_TOKEN } from '../../../common/domain/interfaces/unit-of-work.interface';
 
 describe('GoogleOAuthService', () => {
   let service: GoogleOAuthService;
@@ -82,6 +86,25 @@ describe('GoogleOAuthService', () => {
     execute: jest.fn((work: any) => work({})),
   };
 
+  const mockAppConfigService = {
+    redis_cache_key_prefix: 'test-prefix',
+  };
+
+  const mockTokenService = {
+    createSession: jest.fn(),
+  };
+
+  const mockLoginService = {
+    logLoginAttempt: jest.fn(),
+  };
+
+  const mockOAuthClient = {
+    getTokens: jest.fn(),
+    verifyIdToken: jest.fn(),
+    getUserProfile: jest.fn(),
+    revokeToken: jest.fn(),
+  };
+
   beforeEach(async () => {
     // Set environment variables for tests
     process.env.GOOGLE_CLIENT_ID = 'test-client-id';
@@ -95,6 +118,22 @@ describe('GoogleOAuthService', () => {
         {
           provide: CustomLoggerService,
           useValue: mockCustomLoggerService,
+        },
+        {
+          provide: AppConfigService,
+          useValue: mockAppConfigService,
+        },
+        {
+          provide: TokenService,
+          useValue: mockTokenService,
+        },
+        {
+          provide: LoginService,
+          useValue: mockLoginService,
+        },
+        {
+          provide: OAUTH_CLIENT_TOKEN,
+          useValue: mockOAuthClient,
         },
         {
           provide: RedisService,
@@ -137,6 +176,7 @@ describe('GoogleOAuthService', () => {
           provide: UNIT_OF_WORK_TOKEN,
           useValue: mockUnitOfWork,
         },
+        AppConfigService,
       ],
     }).compile();
 

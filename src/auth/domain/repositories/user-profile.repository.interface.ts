@@ -11,4 +11,4 @@ export interface CreateUserProfileData {
   avatarUrl?: string | null;
 }
 
-export const USER_PROFILE_REPOSITORY_TOKEN = 'IUserProfileRepository';
+export const USER_PROFILE_REPOSITORY_TOKEN = Symbol('IUserProfileRepository');

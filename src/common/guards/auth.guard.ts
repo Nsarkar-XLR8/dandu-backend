@@ -7,11 +7,11 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
-import config from '../config/app.config';
 import {
   CACHE_STORE_TOKEN,
   type ICacheStore,
 } from '../domain/interfaces/cache-store.interface';
+import { AppConfigService } from '../config/app-config.service';
 import { AUTH_USER_REPOSITORY_TOKEN } from '../../auth/domain/repositories/auth-user.repository.interface';
 import type { IAuthUserRepository } from '../../auth/domain/repositories/auth-user.repository.interface';
 
@@ -33,6 +33,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     @Inject(CACHE_STORE_TOKEN)
     private readonly cacheStore: ICacheStore,
+    private readonly appConfig: AppConfigService,
     @Inject(AUTH_USER_REPOSITORY_TOKEN)
     private readonly authUserRepo: IAuthUserRepository,
   ) {}
@@ -48,7 +49,7 @@ export class AuthGuard implements CanActivate {
     try {
       const payload = jwt.verify(
         token,
-        config.jwt_access_secret,
+        this.appConfig.jwt_access_secret,
       ) as IAccessTokenPayload;
 
       // Step 2: Check tokenVersion (hybrid - Redis first, DB fallback)
@@ -84,7 +85,7 @@ export class AuthGuard implements CanActivate {
    * Slow path: DB lookup + cache (~10-20ms, only on cache miss)
    */
   private async getTokenVersion(userId: string): Promise<number> {
-    const cacheKey = `${config.redis_cache_key_prefix}:token_version:${userId}`;
+    const cacheKey = `${this.appConfig.redis_cache_key_prefix}:token_version:${userId}`;
 
     // Try Redis first (fast path - most common)
     const cachedVersion = await this.cacheStore.get<number>(cacheKey);

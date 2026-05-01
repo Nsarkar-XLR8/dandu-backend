@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { EventType, ActionType } from '@prisma/client';
 import { PrismaService } from '../../services/prisma.service';
 import { PrismaTransactionContext } from './prisma-unit-of-work';
 import { ITransactionContext } from '../../domain/interfaces/unit-of-work.interface';
@@ -29,12 +30,13 @@ export class PrismaActivityLogRepository implements IActivityLogRepository {
       data: {
         tableName,
         recordId,
-        action,
-        eventType: (eventType || action) as any,
+        action: action as ActionType,
+        eventType: (eventType || action) as EventType,
         actionedBy: metadata.actionedBy || null,
         ipAddress: metadata.ip,
         userAgent: metadata.userAgent,
         device: metadata.device,
+        requestId: metadata.requestId,
         details:
           changes.length > 0
             ? {

@@ -24,6 +24,7 @@ export interface ActivityLogMetadata {
   userAgent?: string;
   actionedBy?: string | null;
   device?: string;
+  requestId?: string;
 }
 
 export interface FieldChange {
@@ -32,4 +33,4 @@ export interface FieldChange {
   newValue: string | null;
 }
 
-export const ACTIVITY_LOG_REPOSITORY_TOKEN = 'IActivityLogRepository';
+export const ACTIVITY_LOG_REPOSITORY_TOKEN = Symbol('IActivityLogRepository');

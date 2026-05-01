@@ -34,4 +34,4 @@ export interface CreateAuthSecurityData {
   lastPasswordChange?: Date;
 }
 
-export const AUTH_SECURITY_REPOSITORY_TOKEN = 'IAuthSecurityRepository';
+export const AUTH_SECURITY_REPOSITORY_TOKEN = Symbol('IAuthSecurityRepository');

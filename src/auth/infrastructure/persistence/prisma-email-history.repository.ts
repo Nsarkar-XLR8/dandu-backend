@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../common/services/prisma.service';
+import { EmailType, EmailStatus } from '@prisma/client';
 import { PrismaTransactionContext } from '../../../common/infrastructure/persistence/prisma-unit-of-work';
 import { ITransactionContext } from '../../../common/domain/interfaces/unit-of-work.interface';
 import {
@@ -23,7 +24,7 @@ export class PrismaEmailHistoryRepository implements IEmailHistoryRepository {
         emailType: data.emailType,
         subject: data.subject,
         messageId: data.messageId,
-        emailStatus: data.emailStatus as any,
+        emailStatus: data.emailStatus as EmailStatus,
         ipAddress: data.ipAddress,
         userAgent: data.userAgent,
       },
@@ -40,11 +41,11 @@ export class PrismaEmailHistoryRepository implements IEmailHistoryRepository {
     await this.prisma.emailHistory.updateMany({
       where: {
         authId,
-        emailType: emailType as any,
-        emailStatus: oldStatus as any,
+        emailType: emailType as EmailType,
+        emailStatus: oldStatus as EmailStatus,
       },
       data: {
-        emailStatus: newStatus as any,
+        emailStatus: newStatus as EmailStatus,
         ...(errorMessage && { errorMessage }),
       },
     });

@@ -8,7 +8,7 @@ import {
  * Extends the framework-agnostic domain exception base and is mapped to HTTP
  * by the global exception filter.
  */
-class AppError extends DomainException {
+export class AppError extends DomainException {
   public readonly errors?: unknown;
 
   constructor(

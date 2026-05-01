@@ -89,7 +89,7 @@ model Job {
     deletedAt DateTime? // Soft delete
 
     // Relations
-    authUser  authUser           @relation(fields: [authId], references: [id], onDelete: Cascade)
+    authUser  AuthUser           @relation(fields: [authId], references: [id], onDelete: Cascade)
     followUps JobFollowUp[]
     jobNotes  JobNote[]
     timeline  JobTimelineEvent[]

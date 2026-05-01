@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, JobStatus, ResponseStatus, JobPriority, JobLocationType, AppliedVia } from '@prisma/client';
 import { PrismaService } from '../../../common/services/prisma.service';
 import { ITransactionContext } from '../../../common/domain/interfaces/unit-of-work.interface';
 import { PrismaTransactionContext } from '../../../common/infrastructure/persistence/prisma-unit-of-work';
@@ -93,19 +93,19 @@ export class PrismaJobRepository implements IJobRepository {
 
     // Status filters
     if (status && status.length > 0) {
-      where.status = { in: status as any[] };
+      where.status = { in: status as JobStatus[] };
     }
 
     if (responseStatus && responseStatus.length > 0) {
-      where.responseStatus = { in: responseStatus as any[] };
+      where.responseStatus = { in: responseStatus as ResponseStatus[] };
     }
 
     if (priority && priority.length > 0) {
-      where.priority = { in: priority as any[] };
+      where.priority = { in: priority as JobPriority[] };
     }
 
     if (locationType && locationType.length > 0) {
-      where.locationType = { in: locationType as any[] };
+      where.locationType = { in: locationType as JobLocationType[] };
     }
 
     if (location) {
@@ -113,7 +113,7 @@ export class PrismaJobRepository implements IJobRepository {
     }
 
     if (appliedVia && appliedVia.length > 0) {
-      where.appliedVia = { in: appliedVia as any[] };
+      where.appliedVia = { in: appliedVia as AppliedVia[] };
     }
 
     // Date filters

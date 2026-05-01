@@ -13,4 +13,4 @@ export interface IEmailSender {
   ): Promise<void>;
 }
 
-export const EMAIL_SENDER_TOKEN = 'IEmailSender';
+export const EMAIL_SENDER_TOKEN = Symbol('IEmailSender');

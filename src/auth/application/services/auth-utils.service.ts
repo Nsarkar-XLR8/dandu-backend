@@ -1,20 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
 import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 import { Response } from 'express';
-import config from '../../common/config/app.config';
 import {
   IAccessTokenPayload,
   IRefreshTokenPayload,
   ITokenPayload,
-  UserRole,
-} from '../interfaces/auth.interface';
-import { AUTH_CONFIG } from '../config/auth.config';
-import AppError from '../../common/errors/app.error';
+  userRole,
+} from '../../interfaces/auth.interface';
+import { AUTH_CONFIG } from '../../config/auth.config';
+import AppError from '../../../common/errors/app.error';
 import crypto from 'crypto';
 import {
   CACHE_STORE_TOKEN,
   type ICacheStore,
-} from '../../common/domain/interfaces/cache-store.interface';
+} from '../../../common/domain/interfaces/cache-store.interface';
+import { AppConfigService } from '../../../common/config/app-config.service';
 
 interface TokenOptions {
   isRefresh?: boolean;
@@ -30,6 +30,7 @@ export class AuthUtilsService {
   constructor(
     @Inject(CACHE_STORE_TOKEN)
     private readonly cacheStore: ICacheStore,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   /**
@@ -62,7 +63,7 @@ export class AuthUtilsService {
     payload: IAccessTokenPayload,
     expiresIn?: SignOptions['expiresIn'],
   ): string {
-    const secret = config.jwt_access_secret;
+    const secret = this.appConfig.jwt_access_secret;
     if (!secret) {
       throw AppError.internalServerError('JWT access secret is not configured');
     }
@@ -83,7 +84,7 @@ export class AuthUtilsService {
     jti: string,
     expiresIn?: SignOptions['expiresIn'],
   ): string {
-    const secret = config.jwt_refresh_secret;
+    const secret = this.appConfig.jwt_refresh_secret;
     if (!secret) {
       throw AppError.internalServerError(
         'JWT refresh secret is not configured',
@@ -106,8 +107,8 @@ export class AuthUtilsService {
   createToken(payload: ITokenPayload, options: TokenOptions = {}): string {
     const { isRefresh = false, expiresIn } = options;
     const secret = isRefresh
-      ? config.jwt_refresh_secret
-      : config.jwt_access_secret;
+      ? this.appConfig.jwt_refresh_secret
+      : this.appConfig.jwt_access_secret;
     const defaultExpiry = isRefresh ? '7d' : '1h';
 
     const signOptions: SignOptions = {
@@ -126,7 +127,7 @@ export class AuthUtilsService {
    * Verifies an access token
    */
   verifyAccessToken(token: string): IAccessTokenPayload & JwtPayload {
-    const secret = config.jwt_access_secret;
+    const secret = this.appConfig.jwt_access_secret;
     if (!secret) {
       throw AppError.internalServerError('JWT access secret is not configured');
     }
@@ -137,7 +138,7 @@ export class AuthUtilsService {
    * Verifies a refresh token and returns payload with JTI
    */
   verifyRefreshToken(token: string): IRefreshTokenPayload & JwtPayload {
-    const secret = config.jwt_refresh_secret;
+    const secret = this.appConfig.jwt_refresh_secret;
     if (!secret) {
       throw AppError.internalServerError(
         'JWT refresh secret is not configured',
@@ -151,7 +152,7 @@ export class AuthUtilsService {
    * Verifies a JWT token
    */
   verifyToken(token: string): JwtPayload {
-    const secret = config.jwt_access_secret;
+    const secret = this.appConfig.jwt_access_secret;
     if (!secret) {
       throw AppError.internalServerError('JWT secret is not configured');
     }
@@ -186,7 +187,7 @@ export class AuthUtilsService {
     maxAttempts: number,
     windowMs: number,
   ): Promise<boolean> {
-    const cacheKey = `${config.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.RATE_LIMIT}${key}`;
+    const cacheKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.RATE_LIMIT}${key}`;
     const lockKey = `${cacheKey}:locked`;
 
     // First check if we're in a locked state
@@ -252,43 +253,69 @@ export class AuthUtilsService {
    * Checks if a user can modify another user's role based on role hierarchy
    */
   canModifyRole(
-    currentUserRole: UserRole,
-    targetUserRole: UserRole,
-    newRole: UserRole,
+    currentUserRole: userRole,
+    targetUserRole: userRole,
+    newRole: userRole,
   ): boolean {
     const { ROLE_HIERARCHY } = AUTH_CONFIG;
 
     // Super admin can modify any role except other super admins
-    if (currentUserRole === UserRole.SUPER_ADMIN) {
+    if (currentUserRole === userRole.SUPER_ADMIN) {
       return (
-        targetUserRole !== UserRole.SUPER_ADMIN &&
-        newRole !== UserRole.SUPER_ADMIN
+        targetUserRole !== userRole.SUPER_ADMIN &&
+        newRole !== userRole.SUPER_ADMIN
       );
     }
 
     // Admin can only modify moderator and customer roles
-    if (currentUserRole === UserRole.ADMIN) {
+    if (currentUserRole === userRole.ADMIN) {
       const targetRoleLevel =
         ROLE_HIERARCHY[targetUserRole as keyof typeof ROLE_HIERARCHY] || 0;
       const newRoleLevel =
         ROLE_HIERARCHY[newRole as keyof typeof ROLE_HIERARCHY] || 0;
-      const adminLevel = ROLE_HIERARCHY[UserRole.ADMIN];
+      const adminLevel = ROLE_HIERARCHY[userRole.ADMIN];
 
       return targetRoleLevel < adminLevel && newRoleLevel < adminLevel;
     }
 
     // Moderator can only modify customer roles
-    if (currentUserRole === UserRole.MODERATOR) {
+    if (currentUserRole === userRole.MODERATOR) {
       return (
-        targetUserRole === UserRole.CUSTOMER && newRole === UserRole.CUSTOMER
+        targetUserRole === userRole.CUSTOMER && newRole === userRole.CUSTOMER
       );
     }
 
     // Customer cannot modify any roles
-    if (currentUserRole === UserRole.CUSTOMER) {
+    if (currentUserRole === userRole.CUSTOMER) {
       return false;
     }
 
     return false;
+  }
+
+  /**
+   * Parse token expiry string to seconds
+   */
+  parseExpiryToSeconds(expiry: string): number {
+    const match = /^(\d+)([smhd])?$/.exec(expiry);
+    if (!match) {
+      return 3600;
+    }
+
+    const value = Number.parseInt(match[1], 10);
+    const unit = match[2] || 's';
+
+    switch (unit) {
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 60 * 60;
+      case 'd':
+        return value * 60 * 60 * 24;
+      default:
+        return value;
+    }
   }
 }

@@ -14,4 +14,18 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  @ApiOperation({ summary: 'Liveness probe' })
+  @SkipThrottle()
+  @Get('health')
+  health() {
+    return this.appService.health();
+  }
+
+  @ApiOperation({ summary: 'Readiness probe' })
+  @SkipThrottle()
+  @Get('ready')
+  ready() {
+    return this.appService.ready();
+  }
 }

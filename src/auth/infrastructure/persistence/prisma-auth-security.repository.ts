@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AuthSecurity } from '@prisma/client';
 import { PrismaService } from '../../../common/services/prisma.service';
 import { PrismaErrorMapper } from '../../../common/infrastructure/persistence/prisma-error.mapper';
 import { PrismaTransactionContext } from '../../../common/infrastructure/persistence/prisma-unit-of-work';
@@ -68,7 +69,7 @@ export class PrismaAuthSecurityRepository implements IAuthSecurityRepository {
     }
   }
 
-  private map(p: any): AuthSecurityData {
+  private map(p: AuthSecurity): AuthSecurityData {
     return {
       id: p.id,
       authId: p.authId,

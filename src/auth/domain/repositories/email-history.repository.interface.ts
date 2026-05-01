@@ -28,4 +28,4 @@ export interface CreateEmailHistoryData {
   userAgent?: string;
 }
 
-export const EMAIL_HISTORY_REPOSITORY_TOKEN = 'IEmailHistoryRepository';
+export const EMAIL_HISTORY_REPOSITORY_TOKEN = Symbol('IEmailHistoryRepository');

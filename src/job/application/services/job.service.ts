@@ -19,7 +19,7 @@ import {
   AuthorizationException,
   EntityNotFoundException,
 } from '../../../common/domain/exceptions/domain.exception';
-import { JobEntity } from '../../domain/entities/job.entity';
+import { JobEntity, type JobPatch } from '../../domain/entities/job.entity';
 import { JobFollowUpEntity } from '../../domain/entities/job-follow-up.entity';
 import { JobNoteEntity } from '../../domain/entities/job-note.entity';
 import { JobTimelineEventEntity } from '../../domain/entities/job-timeline-event.entity';
@@ -80,72 +80,77 @@ export class JobService {
 
     const job = await this.unitOfWork.execute(async (ctx) => {
       // Build domain entity
-      const jobEntity = new JobEntity(
-        null, // new entity
+      const jobEntity = new JobEntity({
+        id: null,
         authId,
-        createJobDto.company,
-        createJobDto.companyUrl ?? null,
-        createJobDto.companyLinkedin ?? null,
-        createJobDto.companyFacebook ?? null,
-        createJobDto.companyTwitter ?? null,
-        createJobDto.companyLogo ?? null,
-        createJobDto.role,
-        createJobDto.location,
-        createJobDto.locationType || 'REMOTE',
-        createJobDto.salaryDisplay ?? null,
-        createJobDto.salaryMin ?? null,
-        createJobDto.salaryMax ?? null,
-        createJobDto.salaryCurrency || 'USD',
-        createJobDto.contactPerson ?? null,
-        createJobDto.contactEmail ?? null,
-        createJobDto.contactPhone ?? null,
-        new Date(createJobDto.appliedDate),
-        createJobDto.appliedVia,
-        createJobDto.jobPostingUrl ?? null,
-        createJobDto.status || 'APPLIED',
-        createJobDto.responseStatus || 'NO_RESPONSE',
-        createJobDto.responseDate ? new Date(createJobDto.responseDate) : null,
-        createJobDto.techStack || [],
-        createJobDto.jobDescription ?? null,
-        createJobDto.requirements ?? null,
-        createJobDto.responsibilities ?? null,
-        createJobDto.benefits ?? null,
-        createJobDto.interviewScheduled || false,
-        createJobDto.interviewDate
+        company: createJobDto.company,
+        companyUrl: createJobDto.companyUrl ?? null,
+        companyLinkedin: createJobDto.companyLinkedin ?? null,
+        companyFacebook: createJobDto.companyFacebook ?? null,
+        companyTwitter: createJobDto.companyTwitter ?? null,
+        companyLogo: createJobDto.companyLogo ?? null,
+        role: createJobDto.role,
+        location: createJobDto.location,
+        locationType: createJobDto.locationType || 'REMOTE',
+        salaryDisplay: createJobDto.salaryDisplay ?? null,
+        salaryMin: createJobDto.salaryMin ?? null,
+        salaryMax: createJobDto.salaryMax ?? null,
+        salaryCurrency: createJobDto.salaryCurrency || 'USD',
+        contactPerson: createJobDto.contactPerson ?? null,
+        contactEmail: createJobDto.contactEmail ?? null,
+        contactPhone: createJobDto.contactPhone ?? null,
+        appliedDate: new Date(createJobDto.appliedDate),
+        appliedVia: createJobDto.appliedVia,
+        jobPostingUrl: createJobDto.jobPostingUrl ?? null,
+        status: createJobDto.status || 'APPLIED',
+        responseStatus: createJobDto.responseStatus || 'NO_RESPONSE',
+        responseDate: createJobDto.responseDate
+          ? new Date(createJobDto.responseDate)
+          : null,
+        techStack: createJobDto.techStack || [],
+        jobDescription: createJobDto.jobDescription ?? null,
+        requirements: createJobDto.requirements ?? null,
+        responsibilities: createJobDto.responsibilities ?? null,
+        benefits: createJobDto.benefits ?? null,
+        interviewScheduled: createJobDto.interviewScheduled || false,
+        interviewDate: createJobDto.interviewDate
           ? new Date(createJobDto.interviewDate)
           : null,
-        createJobDto.interviewType ?? null,
-        createJobDto.interviewRound ?? null,
-        createJobDto.interviewLocation ?? null,
-        createJobDto.interviewNotes ?? null,
-        createJobDto.priority || 'MEDIUM',
-        createJobDto.tags || [],
-        createJobDto.isFavorite || false,
-        createJobDto.isArchived || false,
-        createJobDto.offerAmount ?? null,
-        createJobDto.offerDate ? new Date(createJobDto.offerDate) : null,
-        createJobDto.offerDeadline
+        interviewType: createJobDto.interviewType ?? null,
+        interviewRound: createJobDto.interviewRound ?? null,
+        interviewLocation: createJobDto.interviewLocation ?? null,
+        interviewNotes: createJobDto.interviewNotes ?? null,
+        priority: createJobDto.priority || 'MEDIUM',
+        tags: createJobDto.tags || [],
+        isFavorite: createJobDto.isFavorite || false,
+        isArchived: createJobDto.isArchived || false,
+        offerAmount: createJobDto.offerAmount ?? null,
+        offerDate: createJobDto.offerDate
+          ? new Date(createJobDto.offerDate)
+          : null,
+        offerDeadline: createJobDto.offerDeadline
           ? new Date(createJobDto.offerDeadline)
           : null,
-        createJobDto.offerNotes ?? null,
-        createJobDto.rejectionReason ?? null,
-        createJobDto.rejectionDate
+        offerNotes: createJobDto.offerNotes ?? null,
+        rejectionReason: createJobDto.rejectionReason ?? null,
+        rejectionDate: createJobDto.rejectionDate
           ? new Date(createJobDto.rejectionDate)
           : null,
-        createJobDto.notes ?? null,
-        (createJobDto.aiParsedData as Record<string, unknown>) ?? null,
-        createJobDto.aiConfidenceScore ?? null,
-        createJobDto.sourceType || 'MANUAL',
-        createJobDto.rawJobPosting ?? null,
-        createJobDto.nextFollowUpDate
+        notes: createJobDto.notes ?? null,
+        aiParsedData:
+          (createJobDto.aiParsedData as Record<string, unknown>) ?? null,
+        aiConfidenceScore: createJobDto.aiConfidenceScore ?? null,
+        sourceType: createJobDto.sourceType || 'MANUAL',
+        rawJobPosting: createJobDto.rawJobPosting ?? null,
+        nextFollowUpDate: createJobDto.nextFollowUpDate
           ? new Date(createJobDto.nextFollowUpDate)
           : null,
-        0,
-        null,
-        new Date(),
-        new Date(),
-        null,
-      );
+        followUpCount: 0,
+        lastFollowUpDate: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deletedAt: null,
+      });
 
       const savedJob = await this.jobRepo.saveInTransaction(jobEntity, ctx);
 
@@ -236,103 +241,7 @@ export class JobService {
     );
 
     const updatedJob = await this.unitOfWork.execute(async (ctx) => {
-      // Apply updates to entity
-      if (updateJobDto.company !== undefined)
-        jobEntity.company = updateJobDto.company;
-      if (updateJobDto.companyUrl !== undefined)
-        jobEntity.companyUrl = updateJobDto.companyUrl ?? null;
-      if (updateJobDto.companyLinkedin !== undefined)
-        jobEntity.companyLinkedin = updateJobDto.companyLinkedin ?? null;
-      if (updateJobDto.companyFacebook !== undefined)
-        jobEntity.companyFacebook = updateJobDto.companyFacebook ?? null;
-      if (updateJobDto.companyTwitter !== undefined)
-        jobEntity.companyTwitter = updateJobDto.companyTwitter ?? null;
-      if (updateJobDto.companyLogo !== undefined)
-        jobEntity.companyLogo = updateJobDto.companyLogo ?? null;
-      if (updateJobDto.role !== undefined) jobEntity.role = updateJobDto.role;
-      if (updateJobDto.location !== undefined)
-        jobEntity.location = updateJobDto.location;
-      if (updateJobDto.locationType !== undefined)
-        jobEntity.locationType = updateJobDto.locationType;
-      if (updateJobDto.salaryDisplay !== undefined)
-        jobEntity.salaryDisplay = updateJobDto.salaryDisplay ?? null;
-      if (updateJobDto.salaryMin !== undefined)
-        jobEntity.salaryMin = updateJobDto.salaryMin ?? null;
-      if (updateJobDto.salaryMax !== undefined)
-        jobEntity.salaryMax = updateJobDto.salaryMax ?? null;
-      if (updateJobDto.salaryCurrency !== undefined)
-        jobEntity.salaryCurrency = updateJobDto.salaryCurrency!;
-      if (updateJobDto.contactPerson !== undefined)
-        jobEntity.contactPerson = updateJobDto.contactPerson ?? null;
-      if (updateJobDto.contactEmail !== undefined)
-        jobEntity.contactEmail = updateJobDto.contactEmail ?? null;
-      if (updateJobDto.contactPhone !== undefined)
-        jobEntity.contactPhone = updateJobDto.contactPhone ?? null;
-      if (updateJobDto.appliedDate !== undefined)
-        jobEntity.appliedDate = new Date(updateJobDto.appliedDate);
-      if (updateJobDto.appliedVia !== undefined)
-        jobEntity.appliedVia = updateJobDto.appliedVia;
-      if (updateJobDto.jobPostingUrl !== undefined)
-        jobEntity.jobPostingUrl = updateJobDto.jobPostingUrl ?? null;
-      if (updateJobDto.responseDate !== undefined)
-        jobEntity.responseDate = new Date(updateJobDto.responseDate);
-      if (updateJobDto.techStack !== undefined)
-        jobEntity.techStack = updateJobDto.techStack;
-      if (updateJobDto.jobDescription !== undefined)
-        jobEntity.jobDescription = updateJobDto.jobDescription ?? null;
-      if (updateJobDto.requirements !== undefined)
-        jobEntity.requirements = updateJobDto.requirements ?? null;
-      if (updateJobDto.responsibilities !== undefined)
-        jobEntity.responsibilities = updateJobDto.responsibilities ?? null;
-      if (updateJobDto.benefits !== undefined)
-        jobEntity.benefits = updateJobDto.benefits ?? null;
-      if (updateJobDto.interviewScheduled !== undefined)
-        jobEntity.interviewScheduled = updateJobDto.interviewScheduled;
-      if (updateJobDto.interviewDate !== undefined)
-        jobEntity.interviewDate = new Date(updateJobDto.interviewDate);
-      if (updateJobDto.interviewType !== undefined)
-        jobEntity.interviewType = updateJobDto.interviewType ?? null;
-      if (updateJobDto.interviewRound !== undefined)
-        jobEntity.interviewRound = updateJobDto.interviewRound ?? null;
-      if (updateJobDto.interviewLocation !== undefined)
-        jobEntity.interviewLocation = updateJobDto.interviewLocation ?? null;
-      if (updateJobDto.interviewNotes !== undefined)
-        jobEntity.interviewNotes = updateJobDto.interviewNotes ?? null;
-      if (updateJobDto.priority !== undefined)
-        jobEntity.priority = updateJobDto.priority;
-      if (updateJobDto.tags !== undefined) jobEntity.tags = updateJobDto.tags;
-      if (updateJobDto.isFavorite !== undefined)
-        jobEntity.isFavorite = updateJobDto.isFavorite;
-      if (updateJobDto.isArchived !== undefined)
-        jobEntity.isArchived = updateJobDto.isArchived;
-      if (updateJobDto.offerAmount !== undefined)
-        jobEntity.offerAmount = updateJobDto.offerAmount ?? null;
-      if (updateJobDto.offerDate !== undefined)
-        jobEntity.offerDate = new Date(updateJobDto.offerDate);
-      if (updateJobDto.offerDeadline !== undefined)
-        jobEntity.offerDeadline = new Date(updateJobDto.offerDeadline);
-      if (updateJobDto.offerNotes !== undefined)
-        jobEntity.offerNotes = updateJobDto.offerNotes ?? null;
-      if (updateJobDto.rejectionReason !== undefined)
-        jobEntity.rejectionReason = updateJobDto.rejectionReason ?? null;
-      if (updateJobDto.rejectionDate !== undefined)
-        jobEntity.rejectionDate = new Date(updateJobDto.rejectionDate);
-      if (updateJobDto.notes !== undefined)
-        jobEntity.notes = updateJobDto.notes ?? null;
-      if (updateJobDto.aiParsedData !== undefined)
-        jobEntity.aiParsedData = updateJobDto.aiParsedData ?? null;
-      if (updateJobDto.aiConfidenceScore !== undefined)
-        jobEntity.aiConfidenceScore = updateJobDto.aiConfidenceScore ?? null;
-      if (updateJobDto.sourceType !== undefined)
-        jobEntity.sourceType = updateJobDto.sourceType;
-      if (updateJobDto.rawJobPosting !== undefined)
-        jobEntity.rawJobPosting = updateJobDto.rawJobPosting ?? null;
-      if (updateJobDto.nextFollowUpDate !== undefined)
-        jobEntity.nextFollowUpDate = new Date(updateJobDto.nextFollowUpDate);
-      if (updateJobDto.followUpCount !== undefined)
-        jobEntity.followUpCount = updateJobDto.followUpCount;
-      if (updateJobDto.lastFollowUpDate !== undefined)
-        jobEntity.lastFollowUpDate = new Date(updateJobDto.lastFollowUpDate);
+      jobEntity.applyPatch(this.toJobPatch(updateJobDto));
 
       // Handle status change via domain method
       if (
@@ -537,7 +446,7 @@ export class JobService {
       const nextPending = await this.followUpRepo.findNextPending(jobId);
       if (nextPending) {
         const job = (await this.jobRepo.findById(jobId))!;
-        job.nextFollowUpDate = nextPending.scheduledDate;
+        job.applyPatch({ nextFollowUpDate: nextPending.scheduledDate });
         await this.jobRepo.saveInTransaction(job, ctx);
       }
 
@@ -731,5 +640,132 @@ export class JobService {
 
   async getStatistics(authId: string) {
     return this.jobRepo.getStatistics(authId);
+  }
+
+  private toJobPatch(dto: UpdateJobDto): JobPatch {
+    return {
+      company: dto.company,
+      companyUrl:
+        dto.companyUrl !== undefined ? (dto.companyUrl ?? null) : undefined,
+      companyLinkedin:
+        dto.companyLinkedin !== undefined
+          ? (dto.companyLinkedin ?? null)
+          : undefined,
+      companyFacebook:
+        dto.companyFacebook !== undefined
+          ? (dto.companyFacebook ?? null)
+          : undefined,
+      companyTwitter:
+        dto.companyTwitter !== undefined
+          ? (dto.companyTwitter ?? null)
+          : undefined,
+      companyLogo:
+        dto.companyLogo !== undefined ? (dto.companyLogo ?? null) : undefined,
+      role: dto.role,
+      location: dto.location,
+      locationType: dto.locationType,
+      salaryDisplay:
+        dto.salaryDisplay !== undefined
+          ? (dto.salaryDisplay ?? null)
+          : undefined,
+      salaryMin:
+        dto.salaryMin !== undefined ? (dto.salaryMin ?? null) : undefined,
+      salaryMax:
+        dto.salaryMax !== undefined ? (dto.salaryMax ?? null) : undefined,
+      salaryCurrency: dto.salaryCurrency,
+      contactPerson:
+        dto.contactPerson !== undefined
+          ? (dto.contactPerson ?? null)
+          : undefined,
+      contactEmail:
+        dto.contactEmail !== undefined ? (dto.contactEmail ?? null) : undefined,
+      contactPhone:
+        dto.contactPhone !== undefined ? (dto.contactPhone ?? null) : undefined,
+      appliedDate:
+        dto.appliedDate !== undefined ? new Date(dto.appliedDate) : undefined,
+      appliedVia: dto.appliedVia,
+      jobPostingUrl:
+        dto.jobPostingUrl !== undefined
+          ? (dto.jobPostingUrl ?? null)
+          : undefined,
+      responseDate:
+        dto.responseDate !== undefined ? new Date(dto.responseDate) : undefined,
+      techStack: dto.techStack,
+      jobDescription:
+        dto.jobDescription !== undefined
+          ? (dto.jobDescription ?? null)
+          : undefined,
+      requirements:
+        dto.requirements !== undefined ? (dto.requirements ?? null) : undefined,
+      responsibilities:
+        dto.responsibilities !== undefined
+          ? (dto.responsibilities ?? null)
+          : undefined,
+      benefits: dto.benefits !== undefined ? (dto.benefits ?? null) : undefined,
+      interviewScheduled: dto.interviewScheduled,
+      interviewDate:
+        dto.interviewDate !== undefined
+          ? new Date(dto.interviewDate)
+          : undefined,
+      interviewType:
+        dto.interviewType !== undefined
+          ? (dto.interviewType ?? null)
+          : undefined,
+      interviewRound:
+        dto.interviewRound !== undefined
+          ? (dto.interviewRound ?? null)
+          : undefined,
+      interviewLocation:
+        dto.interviewLocation !== undefined
+          ? (dto.interviewLocation ?? null)
+          : undefined,
+      interviewNotes:
+        dto.interviewNotes !== undefined
+          ? (dto.interviewNotes ?? null)
+          : undefined,
+      priority: dto.priority,
+      tags: dto.tags,
+      isFavorite: dto.isFavorite,
+      isArchived: dto.isArchived,
+      offerAmount:
+        dto.offerAmount !== undefined ? (dto.offerAmount ?? null) : undefined,
+      offerDate:
+        dto.offerDate !== undefined ? new Date(dto.offerDate) : undefined,
+      offerDeadline:
+        dto.offerDeadline !== undefined
+          ? new Date(dto.offerDeadline)
+          : undefined,
+      offerNotes:
+        dto.offerNotes !== undefined ? (dto.offerNotes ?? null) : undefined,
+      rejectionReason:
+        dto.rejectionReason !== undefined
+          ? (dto.rejectionReason ?? null)
+          : undefined,
+      rejectionDate:
+        dto.rejectionDate !== undefined
+          ? new Date(dto.rejectionDate)
+          : undefined,
+      notes: dto.notes !== undefined ? (dto.notes ?? null) : undefined,
+      aiParsedData:
+        dto.aiParsedData !== undefined ? (dto.aiParsedData ?? null) : undefined,
+      aiConfidenceScore:
+        dto.aiConfidenceScore !== undefined
+          ? (dto.aiConfidenceScore ?? null)
+          : undefined,
+      sourceType: dto.sourceType,
+      rawJobPosting:
+        dto.rawJobPosting !== undefined
+          ? (dto.rawJobPosting ?? null)
+          : undefined,
+      nextFollowUpDate:
+        dto.nextFollowUpDate !== undefined
+          ? new Date(dto.nextFollowUpDate)
+          : undefined,
+      followUpCount: dto.followUpCount,
+      lastFollowUpDate:
+        dto.lastFollowUpDate !== undefined
+          ? new Date(dto.lastFollowUpDate)
+          : undefined,
+    };
   }
 }

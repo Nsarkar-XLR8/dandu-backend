@@ -15,4 +15,4 @@ export interface IJobFollowUpRepository {
   delete(id: string): Promise<void>;
 }
 
-export const JOB_FOLLOW_UP_REPOSITORY_TOKEN = 'IJobFollowUpRepository';
+export const JOB_FOLLOW_UP_REPOSITORY_TOKEN = Symbol('IJobFollowUpRepository');

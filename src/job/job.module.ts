@@ -8,7 +8,6 @@ import { JOB_REPOSITORY_TOKEN } from './domain/repositories/job.repository.inter
 import { JOB_FOLLOW_UP_REPOSITORY_TOKEN } from './domain/repositories/job-follow-up.repository.interface';
 import { JOB_NOTE_REPOSITORY_TOKEN } from './domain/repositories/job-note.repository.interface';
 import { JOB_TIMELINE_REPOSITORY_TOKEN } from './domain/repositories/job-timeline.repository.interface';
-import { UNIT_OF_WORK_TOKEN } from '../common/domain/interfaces/unit-of-work.interface';
 import { ACTIVITY_LOG_REPOSITORY_TOKEN } from '../common/domain/repositories/activity-log.repository.interface';
 
 // Prisma adapters (implementations)
@@ -16,7 +15,6 @@ import { PrismaJobRepository } from './infrastructure/persistence/prisma-job.rep
 import { PrismaJobFollowUpRepository } from './infrastructure/persistence/prisma-job-follow-up.repository';
 import { PrismaJobNoteRepository } from './infrastructure/persistence/prisma-job-note.repository';
 import { PrismaJobTimelineRepository } from './infrastructure/persistence/prisma-job-timeline.repository';
-import { PrismaUnitOfWork } from '../common/infrastructure/persistence/prisma-unit-of-work';
 import { PrismaActivityLogRepository } from '../common/infrastructure/persistence/prisma-activity-log.repository';
 
 /**
@@ -44,7 +42,6 @@ import { PrismaActivityLogRepository } from '../common/infrastructure/persistenc
       provide: JOB_TIMELINE_REPOSITORY_TOKEN,
       useClass: PrismaJobTimelineRepository,
     },
-    { provide: UNIT_OF_WORK_TOKEN, useClass: PrismaUnitOfWork },
     {
       provide: ACTIVITY_LOG_REPOSITORY_TOKEN,
       useClass: PrismaActivityLogRepository,

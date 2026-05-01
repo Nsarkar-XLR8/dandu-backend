@@ -6,7 +6,7 @@ model Subscription {
     id                 String             @id @default(auto()) @map("_id") @db.ObjectId
     authId             String             @db.ObjectId
     planId             String             @db.ObjectId
-    status             subscriptionStatus @default(ACTIVE)
+    status             SubscriptionStatus @default(ACTIVE)
     currentPeriodStart DateTime
     currentPeriodEnd   DateTime
     cancelAtPeriodEnd  Boolean            @default(false)
@@ -17,7 +17,7 @@ model Subscription {
     updatedAt          DateTime           @updatedAt
 
     // Relations
-    authUser authUser         @relation(fields: [authId], references: [id], onDelete: Cascade)
+    authUser AuthUser         @relation(fields: [authId], references: [id], onDelete: Cascade)
     plan     SubscriptionPlan @relation(fields: [planId], references: [id])
     payments Payment[]
     invoices Invoice[]
@@ -32,7 +32,7 @@ model SubscriptionPlan {
     description     String?
     price           Float // Changed from Decimal — MongoDB doesn't support @db.Decimal
     currency        String          @default("USD")
-    interval        billingInterval
+    interval        BillingInterval
     intervalCount   Int             @default(1)
     trialPeriodDays Int?
     features        Json?
@@ -51,7 +51,7 @@ model Payment {
     subscriptionId    String        @db.ObjectId
     amount            Float // Changed from Decimal — MongoDB doesn't support @db.Decimal
     currency          String        @default("USD")
-    status            paymentStatus
+    status            PaymentStatus
     provider          String // stripe, paypal, etc
     providerPaymentId String?
     metadata          Json?
@@ -71,7 +71,7 @@ model Invoice {
     invoiceNumber  String        @unique
     amount         Float // Changed from Decimal — MongoDB doesn't support @db.Decimal
     currency       String        @default("USD")
-    status         invoiceStatus
+    status         InvoiceStatus
     dueDate        DateTime
     paidAt         DateTime?
     invoiceUrl     String?

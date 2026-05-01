@@ -9,36 +9,37 @@ import {
   Logger,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthService } from './auth.service';
-import { GoogleOAuthService } from './services/google-oauth.service';
-import { CreateAuthDto } from './dto/create-auth.dto';
-// import { UpdateAuthDto } from './dto/update-auth.dto';
+import { RegisterService } from '../../application/services/register.service';
+import { LoginService } from '../../application/services/login.service';
+import { TokenService } from '../../application/services/token.service';
+import { GoogleOAuthService } from '../../application/services/google-oauth.service';
+import { CreateAuthDto } from '../../dto/create-auth.dto';
 import {
   GoogleOAuthInitDto,
   GoogleOAuthCallbackDto,
-} from './dto/google-oauth.dto';
+} from '../../dto/google-oauth.dto';
 import type { Request, Response } from 'express';
-import { CustomLoggerService } from '../common/services/custom-logger.service';
-import { THROTTLER_CONFIG } from '../common/config/throttler.config';
-import { AuthGuard } from '../common/guards/auth.guard';
+import { CustomLoggerService } from '../../../common/services/custom-logger.service';
+import { THROTTLER_CONFIG } from '../../../common/config/throttler.config';
+import { AuthGuard } from '../../../common/guards/auth.guard';
+import {
+  RequestMeta,
+  type RequestMetadata,
+} from '../../../common/decorators/request-metadata.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; role: string; tokenVersion: number };
 }
 
-interface RequestMetadata {
-  ip: string;
-  userAgent: string;
-  device?: string;
-}
-
-@ApiTags('auth')
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(
-    private readonly authService: AuthService,
+    private readonly registerService: RegisterService,
+    private readonly loginService: LoginService,
+    private readonly tokenService: TokenService,
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly customLogger: CustomLoggerService,
   ) {}
@@ -46,37 +47,45 @@ export class AuthController {
   // Strict rate limit for registration: 5 requests per 15 minutes
   @Throttle({ default: THROTTLER_CONFIG.AUTH })
   @Post()
-  create(@Body() payload: CreateAuthDto, @Req() req: Request) {
+  @ApiOperation({ summary: 'Register a new user' })
+  @ApiResponse({ status: 201, description: 'User successfully registered' })
+  @ApiResponse({ status: 400, description: 'Validation failed or User already exists' })
+  create(@Body() payload: CreateAuthDto, @RequestMeta() meta: RequestMetadata) {
     this.customLogger.log(
       `Registration attempt for email: ${payload.email}`,
       'AuthController',
     );
-    const meta = this.extractRequestMetadata(req);
-    return this.authService.create(payload, meta);
+    return this.registerService.create(payload, meta);
   }
 
   // Strict rate limit for verification: 5 requests per 15 minutes
   @Throttle({ default: THROTTLER_CONFIG.AUTH })
   @Post('verify-email')
+  @ApiOperation({ summary: 'Verify user email with the provided code' })
+  @ApiResponse({ status: 200, description: 'Email successfully verified' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired verification code' })
   verifyEmail(
     @Body('email') email: string,
     @Body('code') code: string,
-    @Req() req: Request,
+    @RequestMeta(false) meta: RequestMetadata,
   ) {
     this.customLogger.log(
       `Email verification attempt for: ${email}`,
       'AuthController',
     );
-    const meta = this.extractRequestMetadata(req, false);
-    return this.authService.verifyEmail(email, code, meta);
+    return this.registerService.verifyEmail(email, code, meta);
   }
 
   // Strict rate limit: 5 requests per 15 minutes
   @Throttle({ default: THROTTLER_CONFIG.AUTH })
   @Post('resend-verification-email')
-  resendVerificationEmail(@Body('email') email: string, @Req() req: Request) {
-    const meta = this.extractRequestMetadata(req, false);
-    return this.authService.resendVerificationEmail(email, meta);
+  @ApiOperation({ summary: 'Resend email verification code' })
+  @ApiResponse({ status: 200, description: 'Verification code resent successfully' })
+  resendVerificationEmail(
+    @Body('email') email: string,
+    @RequestMeta(false) meta: RequestMetadata,
+  ) {
+    return this.registerService.resendVerificationEmail(email, meta);
   }
 
   // ==========================================
@@ -91,16 +100,16 @@ export class AuthController {
    * @example GET /auth/google?redirectUrl=http://localhost:3000/dashboard
    */
   @Get('google')
+  @ApiOperation({ summary: 'Initiate Google OAuth flow' })
+  @ApiResponse({ status: 302, description: 'Redirects to Google consent screen' })
   async googleOAuthInit(
     @Query() query: GoogleOAuthInitDto,
-    @Req() req: Request,
+    @RequestMeta(false) meta: RequestMetadata,
   ) {
     this.customLogger.log(
       'Google OAuth initialization requested',
       'AuthController',
     );
-
-    const meta = this.extractRequestMetadata(req, false);
 
     const { url, state } = await this.googleOAuthService.getAuthorizationUrl(
       meta,
@@ -127,7 +136,7 @@ export class AuthController {
     @Query('state') state: string,
     @Query('error') error: string,
     @Query('error_description') errorDescription: string,
-    @Req() req: Request,
+    @RequestMeta() meta: RequestMetadata,
 
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -161,8 +170,6 @@ export class AuthController {
 
     this.customLogger.log('Google OAuth callback received', 'AuthController');
     Logger.log('Google OAuth callback received', 'AuthController');
-
-    const meta = this.extractRequestMetadata(req);
 
     const result = await this.googleOAuthService.handleCallback(
       code,
@@ -200,16 +207,16 @@ export class AuthController {
    * Useful for mobile apps or SPAs that handle the callback differently
    */
   @Post('google/callback')
+  @ApiOperation({ summary: 'Alternative POST endpoint for Google OAuth callback' })
+  @ApiResponse({ status: 200, description: 'Google OAuth callback processed' })
   async googleOAuthCallbackPost(
     @Body() body: GoogleOAuthCallbackDto,
-    @Req() req: Request,
+    @RequestMeta() meta: RequestMetadata,
   ) {
     this.customLogger.log(
       'Google OAuth callback (POST) received',
       'AuthController',
     );
-
-    const meta = this.extractRequestMetadata(req);
 
     const result = await this.googleOAuthService.handleCallback(
       body.code,
@@ -236,19 +243,20 @@ export class AuthController {
   // Strict rate limit for login: 5 requests per 15 minutes per IP
   @Throttle({ default: THROTTLER_CONFIG.AUTH })
   @Post('login')
+  @ApiOperation({ summary: 'Login with email and password' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body('email') email: string,
     @Body('password') password: string,
-    @Req() req: Request,
+    @RequestMeta() meta: RequestMetadata,
   ) {
     this.customLogger.log(
       `Login attempt for email: ${email}`,
       'AuthController',
     );
 
-    const meta = this.extractRequestMetadata(req);
-
-    const result = await this.authService.login({ email, password }, meta);
+    const result = await this.loginService.login({ email, password }, meta);
 
     return {
       success: true,
@@ -261,15 +269,16 @@ export class AuthController {
    * Refresh access token using refresh token
    */
   @Post('refresh-token')
+  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refreshToken(
     @Body('refreshToken') refreshToken: string,
-    @Req() req: Request,
+    @RequestMeta() meta: RequestMetadata,
   ) {
     this.customLogger.log('Token refresh requested', 'AuthController');
 
-    const meta = this.extractRequestMetadata(req);
-
-    const result = await this.authService.refreshToken(refreshToken, meta);
+    const result = await this.tokenService.refreshToken(refreshToken, meta);
 
     return {
       success: true,
@@ -283,13 +292,16 @@ export class AuthController {
    */
   @UseGuards(AuthGuard)
   @Post('logout')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Logout current session' })
+  @ApiResponse({ status: 200, description: 'Logged out successfully' })
   async logout(
     @Body('refreshToken') refreshToken: string,
     @Req() req: AuthenticatedRequest,
   ) {
     this.customLogger.log('Logout requested', 'AuthController');
 
-    const result = await this.authService.logout(refreshToken, req.user.userId);
+    const result = await this.tokenService.logout(refreshToken, req.user.userId);
 
     return {
       success: true,
@@ -302,42 +314,20 @@ export class AuthController {
    */
   @UseGuards(AuthGuard)
   @Post('logout-all')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Logout from all devices' })
+  @ApiResponse({ status: 200, description: 'Logged out from all devices successfully' })
   async logoutAll(@Req() req: AuthenticatedRequest) {
     this.customLogger.log(
       `Logout all devices requested for user: ${req.user.userId}`,
       'AuthController',
     );
 
-    const result = await this.authService.logoutAllDevices(req.user.userId);
+    const result = await this.tokenService.logoutAllDevices(req.user.userId);
 
     return {
       success: true,
       ...result,
     };
-  }
-
-  private extractRequestMetadata(
-    req: Request,
-    includeDevice = true,
-  ): RequestMetadata {
-    const meta: RequestMetadata = {
-      ip: req.ip || 'unknown',
-      userAgent: this.firstHeaderValue(req.headers['user-agent']) || 'unknown',
-    };
-
-    if (includeDevice) {
-      meta.device =
-        this.firstHeaderValue(req.headers['x-device']) ||
-        this.firstHeaderValue(req.headers['x-device-id']) ||
-        this.firstHeaderValue(req.headers['sec-ch-ua-platform']);
-    }
-
-    return meta;
-  }
-
-  private firstHeaderValue(
-    value: Request['headers'][string],
-  ): string | undefined {
-    return Array.isArray(value) ? value[0] : value;
   }
 }

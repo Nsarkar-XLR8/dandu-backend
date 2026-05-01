@@ -27,6 +27,7 @@ export class PrismaLoginHistoryRepository implements ILoginHistoryRepository {
         failureReason: data.failureReason,
         attemptNumber: data.attemptNumber ?? 1,
         isSuspicious: data.isSuspicious ?? false,
+        requestId: data.requestId,
       },
     });
   }

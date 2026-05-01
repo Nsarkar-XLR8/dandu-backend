@@ -2,14 +2,14 @@
 // User & Auth Related Enums
 // ================================
 
-enum userRole {
+enum UserRole {
     USER
     ADMIN
     MODERATOR
     SUPERADMIN
 }
 
-enum userStatus {
+enum UserStatus {
     ACTIVE
     INACTIVE
     SUSPENDED
@@ -17,14 +17,14 @@ enum userStatus {
     BLOCKED
 }
 
-enum mfaMethod {
+enum MfaMethod {
     totp
     sms
     email
     webauthn
 }
 
-enum loginAction {
+enum LoginAction {
     login
     logout
 }
@@ -33,20 +33,20 @@ enum loginAction {
 // Email Related Enums
 // ================================
 
-enum email_type {
+enum EmailType {
     verification
     password_reset
     notification
 }
 
-enum email_provider {
+enum EmailProvider {
     sendgrid
     mailgun
     ses
     stmp
 }
 
-enum email_status {
+enum EmailStatus {
     sent
     failed
     pending
@@ -60,7 +60,7 @@ enum email_status {
 // Activity Related Enums
 // ================================
 
-enum eventType {
+enum EventType {
     create
     update
     delete
@@ -70,7 +70,7 @@ enum eventType {
     profile_update
 }
 
-enum actionType {
+enum ActionType {
     create
     update
     delete
@@ -80,7 +80,7 @@ enum actionType {
 // Subscription Related Enums
 // ================================
 
-enum subscriptionStatus {
+enum SubscriptionStatus {
     ACTIVE
     PAST_DUE
     CANCELED
@@ -90,14 +90,14 @@ enum subscriptionStatus {
     UNPAID
 }
 
-enum billingInterval {
+enum BillingInterval {
     DAY
     WEEK
     MONTH
     YEAR
 }
 
-enum paymentStatus {
+enum PaymentStatus {
     PENDING
     PROCESSING
     SUCCEEDED
@@ -106,7 +106,7 @@ enum paymentStatus {
     REFUNDED
 }
 
-enum invoiceStatus {
+enum InvoiceStatus {
     DRAFT
     OPEN
     PAID

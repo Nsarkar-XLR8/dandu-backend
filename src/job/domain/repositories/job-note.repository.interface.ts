@@ -10,4 +10,4 @@ export interface IJobNoteRepository {
   delete(id: string): Promise<void>;
 }
 
-export const JOB_NOTE_REPOSITORY_TOKEN = 'IJobNoteRepository';
+export const JOB_NOTE_REPOSITORY_TOKEN = Symbol('IJobNoteRepository');

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { JobNote } from '@prisma/client';
 import { PrismaService } from '../../../common/services/prisma.service';
 import { PrismaErrorMapper } from '../../../common/infrastructure/persistence/prisma-error.mapper';
 import { IJobNoteRepository } from '../../domain/repositories/job-note.repository.interface';
@@ -54,7 +55,7 @@ export class PrismaJobNoteRepository implements IJobNoteRepository {
     await this.prisma.jobNote.delete({ where: { id } });
   }
 
-  private map(p: any): JobNoteEntity {
+  private map(p: JobNote): JobNoteEntity {
     return new JobNoteEntity(
       p.id,
       p.jobId,

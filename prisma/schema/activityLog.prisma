@@ -6,17 +6,18 @@ model ActivityLogEvent {
     id         String     @id @default(auto()) @map("_id") @db.ObjectId
     tableName  String
     recordId   String
-    action     actionType
+    action     ActionType
     actionedBy String?    @db.ObjectId // user id who did the action
     ipAddress  String?
     userAgent  String?
     device     String?
+    requestId  String?
     createdAt  DateTime   @default(now())
-    eventType  eventType?
+    eventType  EventType?
 
     // Relations
     details  ActivityLogEventDetail[]
-    authUser authUser?                @relation(fields: [actionedBy], references: [id], onDelete: SetNull)
+    authUser AuthUser?                @relation(fields: [actionedBy], references: [id], onDelete: SetNull)
 
     @@index([tableName, recordId, createdAt]) // fetch history for a record
     @@index([actionedBy, createdAt]) // fetch actions by user

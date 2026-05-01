@@ -1,9 +1,14 @@
 import { Module } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
-import { AuthUtilsService } from './services/auth-utils.service';
-import { GoogleOAuthService } from './services/google-oauth.service';
+import { AuthController } from './infrastructure/controllers/auth.controller';
+import { AuthUtilsService } from './application/services/auth-utils.service';
+import { GoogleOAuthService } from './application/services/google-oauth.service';
+import { RegisterService } from './application/services/register.service';
+import { LoginService } from './application/services/login.service';
+import { TokenService } from './application/services/token.service';
 import { ActivityLogService } from '../common/services/activity-log.service';
+import { AppConfigService } from '../common/config/app-config.service';
+import { GoogleOAuthAdapter } from './infrastructure/external-services/google-oauth.adapter';
+import { OAUTH_CLIENT_TOKEN } from './application/ports/oauth-client.interface';
 import { QueueModule } from '../common/modules';
 
 // Repository injection tokens
@@ -12,7 +17,6 @@ import { AUTH_SECURITY_REPOSITORY_TOKEN } from './domain/repositories/auth-secur
 import { LOGIN_HISTORY_REPOSITORY_TOKEN } from './domain/repositories/login-history.repository.interface';
 import { EMAIL_HISTORY_REPOSITORY_TOKEN } from './domain/repositories/email-history.repository.interface';
 import { USER_PROFILE_REPOSITORY_TOKEN } from './domain/repositories/user-profile.repository.interface';
-import { UNIT_OF_WORK_TOKEN } from '../common/domain/interfaces/unit-of-work.interface';
 import { ACTIVITY_LOG_REPOSITORY_TOKEN } from '../common/domain/repositories/activity-log.repository.interface';
 
 // Prisma adapters (implementations)
@@ -21,7 +25,6 @@ import { PrismaAuthSecurityRepository } from './infrastructure/persistence/prism
 import { PrismaLoginHistoryRepository } from './infrastructure/persistence/prisma-login-history.repository';
 import { PrismaEmailHistoryRepository } from './infrastructure/persistence/prisma-email-history.repository';
 import { PrismaUserProfileRepository } from './infrastructure/persistence/prisma-user-profile.repository';
-import { PrismaUnitOfWork } from '../common/infrastructure/persistence/prisma-unit-of-work';
 import { PrismaActivityLogRepository } from '../common/infrastructure/persistence/prisma-activity-log.repository';
 import { PASSWORD_HASHER_TOKEN } from '../common/domain/interfaces/password-hasher.interface';
 import { BcryptPasswordHasher } from '../common/infrastructure/security/bcrypt-password-hasher';
@@ -36,13 +39,20 @@ import { BcryptPasswordHasher } from '../common/infrastructure/security/bcrypt-p
   imports: [QueueModule],
   controllers: [AuthController],
   providers: [
-    AuthService,
     AuthUtilsService,
     GoogleOAuthService,
+    RegisterService,
+    LoginService,
+    TokenService,
     ActivityLogService,
+    AppConfigService,
     BcryptPasswordHasher,
     { provide: PASSWORD_HASHER_TOKEN, useExisting: BcryptPasswordHasher },
     // Port → Adapter bindings
+    {
+      provide: OAUTH_CLIENT_TOKEN,
+      useClass: GoogleOAuthAdapter,
+    },
     { provide: AUTH_USER_REPOSITORY_TOKEN, useClass: PrismaAuthUserRepository },
     {
       provide: AUTH_SECURITY_REPOSITORY_TOKEN,
@@ -60,7 +70,6 @@ import { BcryptPasswordHasher } from '../common/infrastructure/security/bcrypt-p
       provide: USER_PROFILE_REPOSITORY_TOKEN,
       useClass: PrismaUserProfileRepository,
     },
-    { provide: UNIT_OF_WORK_TOKEN, useClass: PrismaUnitOfWork },
     {
       provide: ACTIVITY_LOG_REPOSITORY_TOKEN,
       useClass: PrismaActivityLogRepository,

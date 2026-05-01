@@ -2,7 +2,7 @@
 // Login History Model
 // ================================
 
-model loginHistory {
+model LoginHistory {
     id            String      @id @default(auto()) @map("_id") @db.ObjectId
     authId        String      @db.ObjectId
     ipAddress     String
@@ -10,15 +10,16 @@ model loginHistory {
     device_id     String?
     geo_country   String?
     geo_city      String?
-    action        loginAction
+    action        LoginAction
     success       Boolean
     failureReason String?
     attemptNumber Int         @default(1)
     isSuspicious  Boolean     @default(false)
+    requestId     String?
     createdAt     DateTime    @default(now())
 
     // Relations
-    authUser authUser @relation(fields: [authId], references: [id], onDelete: Cascade)
+    authUser AuthUser @relation(fields: [authId], references: [id], onDelete: Cascade)
 
     @@index([authId, createdAt])
 }
@@ -27,15 +28,15 @@ model loginHistory {
 // Email History Model
 // ================================
 
-model emailHistory {
+model EmailHistory {
     id            String          @id @default(auto()) @map("_id") @db.ObjectId
     authId        String          @db.ObjectId
     emailTo       String
-    emailType     email_type
+    emailType     EmailType
     subject       String
-    emailProvider email_provider?
+    emailProvider EmailProvider?
     messageId     String
-    emailStatus   email_status
+    emailStatus   EmailStatus
     retry_count   Int             @default(0)
     ipAddress     String?
     userAgent     String?
@@ -44,7 +45,7 @@ model emailHistory {
     createdAt     DateTime        @default(now())
 
     // Relations
-    authUser authUser @relation(fields: [authId], references: [id], onDelete: Cascade)
+    authUser AuthUser @relation(fields: [authId], references: [id], onDelete: Cascade)
 
     @@index([authId])
     @@index([emailTo])

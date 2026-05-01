@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, JobTimelineEvent } from '@prisma/client';
 import { PrismaService } from '../../../common/services/prisma.service';
 import { PrismaErrorMapper } from '../../../common/infrastructure/persistence/prisma-error.mapper';
 import { IJobTimelineRepository } from '../../domain/repositories/job-timeline.repository.interface';
@@ -40,14 +40,14 @@ export class PrismaJobTimelineRepository implements IJobTimelineRepository {
     }
   }
 
-  private map(p: any): JobTimelineEventEntity {
+  private map(p: JobTimelineEvent): JobTimelineEventEntity {
     return new JobTimelineEventEntity(
       p.id,
       p.jobId,
       p.eventType,
       p.title,
       p.description,
-      p.metadata,
+      p.metadata as Record<string, unknown> | null,
       p.createdAt,
     );
   }

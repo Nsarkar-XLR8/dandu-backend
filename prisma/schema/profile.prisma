@@ -2,7 +2,7 @@
 // User Profile Model
 // ================================
 
-model userProfile {
+model UserProfile {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     authId    String   @unique @db.ObjectId
     firstName String?
@@ -13,7 +13,7 @@ model userProfile {
     updatedAt DateTime @updatedAt
 
     // Relations
-    authUser authUser @relation(fields: [authId], references: [id], onDelete: Cascade)
+    authUser AuthUser @relation(fields: [authId], references: [id], onDelete: Cascade)
 
     // @unique on authId already creates an index — no @@index needed
 }

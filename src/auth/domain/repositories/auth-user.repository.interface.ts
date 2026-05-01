@@ -37,6 +37,8 @@ export interface AuthUserSelect {
   role?: boolean;
   status?: boolean;
   tokenVersion?: boolean;
+  email?: boolean;
+  username?: boolean;
 }
 
 export interface AuthUserWithSecurity {
@@ -49,4 +51,4 @@ export interface AuthUserWithSecurity {
   } | null;
 }
 
-export const AUTH_USER_REPOSITORY_TOKEN = 'IAuthUserRepository';
+export const AUTH_USER_REPOSITORY_TOKEN = Symbol('IAuthUserRepository');

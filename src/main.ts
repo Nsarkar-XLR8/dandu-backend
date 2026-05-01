@@ -13,14 +13,23 @@ import { setupSwagger } from './common/config/swagger.config';
 import config from './common/config/app.config';
 // import { AllExceptionFilter } from './common/filters/all-exception.filter';
 
+import { VersioningType } from '@nestjs/common';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
   });
 
+  // Enable API Versioning
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
+
   // Use Winston logger
   const nestLogger = app.get<LoggerService>(WINSTON_MODULE_NEST_PROVIDER);
   app.useLogger(nestLogger);
+  app.enableShutdownHooks();
 
   const winstonLogger = app.get<Logger>(WINSTON_MODULE_PROVIDER);
   app.useGlobalFilters(new AllExceptionsFilter(winstonLogger));
@@ -40,7 +49,14 @@ async function bootstrap() {
     origin: corsOrigin,
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Device', 'X-Device-Id'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Device',
+      'X-Device-Id',
+      'X-Request-ID',
+    ],
+    exposedHeaders: ['X-Request-ID'],
   });
 
   // Security middleware - helmet helps secure Express apps by setting HTTP response headers

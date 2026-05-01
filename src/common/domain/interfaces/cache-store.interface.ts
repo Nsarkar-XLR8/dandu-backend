@@ -8,4 +8,4 @@ export interface ICacheStore {
   expire(key: string, seconds: number): Promise<boolean>;
 }
 
-export const CACHE_STORE_TOKEN = 'ICacheStore';
+export const CACHE_STORE_TOKEN = Symbol('ICacheStore');

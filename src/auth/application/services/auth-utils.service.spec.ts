@@ -1,7 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthUtilsService } from './auth-utils.service';
-import { RedisService } from '../../common/services/redis.service';
-import { CACHE_STORE_TOKEN } from '../../common/domain/interfaces/cache-store.interface';
+import { RedisService } from '../../../common/services/redis.service';
+import { CACHE_STORE_TOKEN } from '../../../common/domain/interfaces/cache-store.interface';
+import { AppConfigService } from '../../../common/config/app-config.service';
 
 describe('AuthUtilsService', () => {
   let service: AuthUtilsService;
@@ -24,6 +25,7 @@ describe('AuthUtilsService', () => {
           provide: CACHE_STORE_TOKEN,
           useValue: mockRedisService,
         },
+        AppConfigService,
       ],
     }).compile();
 

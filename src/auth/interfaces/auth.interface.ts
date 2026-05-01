@@ -2,7 +2,7 @@
  * Authentication-related interfaces and types
  */
 
-export enum UserRole {
+export enum userRole {
   CUSTOMER = 'CUSTOMER',
   MODERATOR = 'MODERATOR',
   ADMIN = 'ADMIN',
@@ -15,7 +15,7 @@ export enum UserRole {
  */
 export interface IAccessTokenPayload {
   userId: string;
-  role: UserRole;
+  role: userRole;
   tokenVersion: number; // Incremented on security events (block, password change, etc.)
   iat?: number;
   exp?: number;
@@ -37,7 +37,7 @@ export interface IRefreshTokenPayload {
 export interface ITokenPayload {
   userId: string;
   email: string;
-  role: UserRole;
+  role: userRole;
   jti?: string;
   iat?: number;
   exp?: number;

@@ -1,8 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
-import { AuthUtilsService } from './services/auth-utils.service';
-import { GoogleOAuthService } from './services/google-oauth.service';
+import { AuthController } from './infrastructure/controllers/auth.controller';
+import { RegisterService } from './application/services/register.service';
+import { LoginService } from './application/services/login.service';
+import { TokenService } from './application/services/token.service';
+import { AuthUtilsService } from './application/services/auth-utils.service';
+import { GoogleOAuthService } from './application/services/google-oauth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import type { Request } from 'express';
 import { CustomLoggerService } from '../common/services/custom-logger.service';
@@ -11,11 +13,17 @@ import { AuthGuard } from '../common/guards/auth.guard';
 describe('AuthController', () => {
   let controller: AuthController;
 
-  const mockAuthService = {
+  const mockRegisterService = {
     create: jest.fn(),
     verifyEmail: jest.fn(),
     resendVerificationEmail: jest.fn(),
+  };
+
+  const mockLoginService = {
     login: jest.fn(),
+  };
+
+  const mockTokenService = {
     refreshToken: jest.fn(),
     logout: jest.fn(),
     logoutAllDevices: jest.fn(),
@@ -49,8 +57,16 @@ describe('AuthController', () => {
       controllers: [AuthController],
       providers: [
         {
-          provide: AuthService,
-          useValue: mockAuthService,
+          provide: RegisterService,
+          useValue: mockRegisterService,
+        },
+        {
+          provide: LoginService,
+          useValue: mockLoginService,
+        },
+        {
+          provide: TokenService,
+          useValue: mockTokenService,
         },
         {
           provide: AuthUtilsService,
@@ -89,24 +105,22 @@ describe('AuthController', () => {
         email: 'test@example.com',
       };
 
-      const mockRequest = {
+      const meta = {
         ip: '127.0.0.1',
-        headers: {
-          'user-agent': 'Jest Test Agent',
-          'x-device': 'test-device',
-        },
-      } as unknown as Request;
+        userAgent: 'Jest Test Agent',
+        device: 'test-device',
+      };
 
-      mockAuthService.create.mockResolvedValue(undefined);
+      mockRegisterService.create.mockResolvedValue(undefined);
 
-      await controller.create(createAuthDto, mockRequest);
+      await controller.create(createAuthDto, meta);
 
-      expect(mockAuthService.create).toHaveBeenCalledWith(createAuthDto, {
+      expect(mockRegisterService.create).toHaveBeenCalledWith(createAuthDto, {
         ip: '127.0.0.1',
         userAgent: 'Jest Test Agent',
         device: 'test-device',
       });
-      expect(mockAuthService.create).toHaveBeenCalledTimes(1);
+      expect(mockRegisterService.create).toHaveBeenCalledTimes(1);
     });
 
     it('should handle missing IP and user agent', async () => {
@@ -116,15 +130,17 @@ describe('AuthController', () => {
         email: 'test@example.com',
       };
 
-      const mockRequest = {
-        headers: {},
-      } as unknown as Request;
+      const meta = {
+        ip: 'unknown',
+        userAgent: 'unknown',
+        device: undefined,
+      };
 
-      mockAuthService.create.mockResolvedValue(undefined);
+      mockRegisterService.create.mockResolvedValue(undefined);
 
-      await controller.create(createAuthDto, mockRequest);
+      await controller.create(createAuthDto, meta);
 
-      expect(mockAuthService.create).toHaveBeenCalledWith(createAuthDto, {
+      expect(mockRegisterService.create).toHaveBeenCalledWith(createAuthDto, {
         ip: 'unknown',
         userAgent: 'unknown',
         device: undefined,
@@ -138,19 +154,17 @@ describe('AuthController', () => {
         email: 'test@example.com',
       };
 
-      const mockRequest = {
+      const meta = {
         ip: '192.168.1.1',
-        headers: {
-          'user-agent': 'Mobile Agent',
-          'x-device-id': 'mobile-device-123',
-        },
-      } as unknown as Request;
+        userAgent: 'Mobile Agent',
+        device: 'mobile-device-123',
+      };
 
-      mockAuthService.create.mockResolvedValue(undefined);
+      mockRegisterService.create.mockResolvedValue(undefined);
 
-      await controller.create(createAuthDto, mockRequest);
+      await controller.create(createAuthDto, meta);
 
-      expect(mockAuthService.create).toHaveBeenCalledWith(createAuthDto, {
+      expect(mockRegisterService.create).toHaveBeenCalledWith(createAuthDto, {
         ip: '192.168.1.1',
         userAgent: 'Mobile Agent',
         device: 'mobile-device-123',
@@ -164,19 +178,17 @@ describe('AuthController', () => {
         email: 'test@example.com',
       };
 
-      const mockRequest = {
+      const meta = {
         ip: '10.0.0.1',
-        headers: {
-          'user-agent': 'Chrome Browser',
-          'sec-ch-ua-platform': '"Windows"',
-        },
-      } as unknown as Request;
+        userAgent: 'Chrome Browser',
+        device: '"Windows"',
+      };
 
-      mockAuthService.create.mockResolvedValue(undefined);
+      mockRegisterService.create.mockResolvedValue(undefined);
 
-      await controller.create(createAuthDto, mockRequest);
+      await controller.create(createAuthDto, meta);
 
-      expect(mockAuthService.create).toHaveBeenCalledWith(createAuthDto, {
+      expect(mockRegisterService.create).toHaveBeenCalledWith(createAuthDto, {
         ip: '10.0.0.1',
         userAgent: 'Chrome Browser',
         device: '"Windows"',
@@ -188,39 +200,38 @@ describe('AuthController', () => {
     it('should verify email with valid code', async () => {
       const email = 'test@example.com';
       const code = '123456';
-      const mockRequest = {
+      const meta = {
         ip: '127.0.0.1',
-        headers: {
-          'user-agent': 'Jest Test Agent',
-        },
-      } as unknown as Request;
+        userAgent: 'Jest Test Agent',
+      };
 
       const mockResponse = { message: 'Email verified successfully' };
-      mockAuthService.verifyEmail.mockResolvedValue(mockResponse);
+      mockRegisterService.verifyEmail.mockResolvedValue(mockResponse);
 
-      const result = await controller.verifyEmail(email, code, mockRequest);
+      const result = await controller.verifyEmail(email, code, meta);
 
       expect(result).toEqual(mockResponse);
-      expect(mockAuthService.verifyEmail).toHaveBeenCalledWith(email, code, {
+      expect(mockRegisterService.verifyEmail).toHaveBeenCalledWith(email, code, {
         ip: '127.0.0.1',
         userAgent: 'Jest Test Agent',
       });
-      expect(mockAuthService.verifyEmail).toHaveBeenCalledTimes(1);
+      expect(mockRegisterService.verifyEmail).toHaveBeenCalledTimes(1);
     });
 
     it('should handle missing IP and user agent for verifyEmail', async () => {
       const email = 'test@example.com';
       const code = '123456';
-      const mockRequest = {
-        headers: {},
-      } as unknown as Request;
+      const meta = {
+        ip: 'unknown',
+        userAgent: 'unknown',
+      };
 
       const mockResponse = { message: 'Email verified successfully' };
-      mockAuthService.verifyEmail.mockResolvedValue(mockResponse);
+      mockRegisterService.verifyEmail.mockResolvedValue(mockResponse);
 
-      await controller.verifyEmail(email, code, mockRequest);
+      await controller.verifyEmail(email, code, meta);
 
-      expect(mockAuthService.verifyEmail).toHaveBeenCalledWith(email, code, {
+      expect(mockRegisterService.verifyEmail).toHaveBeenCalledWith(email, code, {
         ip: 'unknown',
         userAgent: 'unknown',
       });
@@ -229,64 +240,58 @@ describe('AuthController', () => {
     it('should handle service errors for verifyEmail', async () => {
       const email = 'test@example.com';
       const code = 'invalid';
-      const mockRequest = {
+      const meta = {
         ip: '127.0.0.1',
-        headers: {
-          'user-agent': 'Jest Test Agent',
-        },
-      } as unknown as Request;
+        userAgent: 'Jest Test Agent',
+      };
 
       const error = new Error('Invalid verification code');
-      mockAuthService.verifyEmail.mockRejectedValue(error);
+      mockRegisterService.verifyEmail.mockRejectedValue(error);
 
-      await expect(
-        controller.verifyEmail(email, code, mockRequest),
-      ).rejects.toThrow('Invalid verification code');
-      expect(mockAuthService.verifyEmail).toHaveBeenCalledTimes(1);
+      await expect(controller.verifyEmail(email, code, meta)).rejects.toThrow(
+        'Invalid verification code',
+      );
+      expect(mockRegisterService.verifyEmail).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('resendVerificationEmail', () => {
     it('should resend verification email successfully', async () => {
       const email = 'test@example.com';
-      const mockRequest = {
+      const meta = {
         ip: '127.0.0.1',
-        headers: {
-          'user-agent': 'Jest Test Agent',
-        },
-      } as unknown as Request;
+        userAgent: 'Jest Test Agent',
+      };
 
       const mockResponse = { message: 'Verification email sent successfully' };
-      mockAuthService.resendVerificationEmail.mockResolvedValue(mockResponse);
+      mockRegisterService.resendVerificationEmail.mockResolvedValue(mockResponse);
 
-      const result = await controller.resendVerificationEmail(
-        email,
-        mockRequest,
-      );
+      const result = await controller.resendVerificationEmail(email, meta);
 
       expect(result).toEqual(mockResponse);
-      expect(mockAuthService.resendVerificationEmail).toHaveBeenCalledWith(
+      expect(mockRegisterService.resendVerificationEmail).toHaveBeenCalledWith(
         email,
         {
           ip: '127.0.0.1',
           userAgent: 'Jest Test Agent',
         },
       );
-      expect(mockAuthService.resendVerificationEmail).toHaveBeenCalledTimes(1);
+      expect(mockRegisterService.resendVerificationEmail).toHaveBeenCalledTimes(1);
     });
 
     it('should handle missing IP and user agent for resendVerificationEmail', async () => {
       const email = 'test@example.com';
-      const mockRequest = {
-        headers: {},
-      } as unknown as Request;
+      const meta = {
+        ip: 'unknown',
+        userAgent: 'unknown',
+      };
 
       const mockResponse = { message: 'Verification email sent successfully' };
-      mockAuthService.resendVerificationEmail.mockResolvedValue(mockResponse);
+      mockRegisterService.resendVerificationEmail.mockResolvedValue(mockResponse);
 
-      await controller.resendVerificationEmail(email, mockRequest);
+      await controller.resendVerificationEmail(email, meta);
 
-      expect(mockAuthService.resendVerificationEmail).toHaveBeenCalledWith(
+      expect(mockRegisterService.resendVerificationEmail).toHaveBeenCalledWith(
         email,
         {
           ip: 'unknown',
@@ -297,32 +302,28 @@ describe('AuthController', () => {
 
     it('should handle service errors for resendVerificationEmail', async () => {
       const email = 'test@example.com';
-      const mockRequest = {
+      const meta = {
         ip: '127.0.0.1',
-        headers: {
-          'user-agent': 'Jest Test Agent',
-        },
-      } as unknown as Request;
+        userAgent: 'Jest Test Agent',
+      };
 
       const error = new Error('User not found');
-      mockAuthService.resendVerificationEmail.mockRejectedValue(error);
+      mockRegisterService.resendVerificationEmail.mockRejectedValue(error);
 
       await expect(
-        controller.resendVerificationEmail(email, mockRequest),
+        controller.resendVerificationEmail(email, meta),
       ).rejects.toThrow('User not found');
-      expect(mockAuthService.resendVerificationEmail).toHaveBeenCalledTimes(1);
+      expect(mockRegisterService.resendVerificationEmail).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('googleOAuthCallback', () => {
     it('should place redirect tokens in the URL fragment', async () => {
-      const mockRequest = {
+      const meta = {
         ip: '127.0.0.1',
-        headers: {
-          'user-agent': 'Jest Test Agent',
-          'x-device': 'test-device',
-        },
-      } as unknown as Request;
+        userAgent: 'Jest Test Agent',
+        device: 'test-device',
+      };
       const mockResponse = {
         redirect: jest.fn(),
       } as unknown as { redirect: jest.Mock };
@@ -340,12 +341,14 @@ describe('AuthController', () => {
         'state',
         '',
         '',
-        mockRequest,
+        meta,
         mockResponse as never,
       );
 
       expect(mockResponse.redirect).toHaveBeenCalledTimes(1);
-      const redirectedUrl = new URL(mockResponse.redirect.mock.calls[0][0]);
+      const redirectedUrl = new URL(
+        mockResponse.redirect.mock.calls[0][0] as string,
+      );
 
       expect(redirectedUrl.searchParams.get('from')).toBe('google');
       expect(redirectedUrl.searchParams.has('access_token')).toBe(false);
@@ -368,13 +371,13 @@ describe('AuthController', () => {
         user: { userId: string; role: string; tokenVersion: number };
       };
 
-      mockAuthService.logout.mockResolvedValue({
+      mockTokenService.logout.mockResolvedValue({
         message: 'Logged out successfully',
       });
 
       const result = await controller.logout('refresh-token', mockRequest);
 
-      expect(mockAuthService.logout).toHaveBeenCalledWith(
+      expect(mockTokenService.logout).toHaveBeenCalledWith(
         'refresh-token',
         'auth-user-1',
       );
@@ -393,13 +396,13 @@ describe('AuthController', () => {
         user: { userId: string; role: string; tokenVersion: number };
       };
 
-      mockAuthService.logoutAllDevices.mockResolvedValue({
+      mockTokenService.logoutAllDevices.mockResolvedValue({
         message: 'Logged out from all devices successfully',
       });
 
       const result = await controller.logoutAll(mockRequest);
 
-      expect(mockAuthService.logoutAllDevices).toHaveBeenCalledWith(
+      expect(mockTokenService.logoutAllDevices).toHaveBeenCalledWith(
         'auth-user-1',
       );
       expect(result).toEqual({

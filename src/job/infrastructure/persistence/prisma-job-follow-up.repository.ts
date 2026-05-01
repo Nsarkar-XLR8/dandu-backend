@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { JobFollowUp } from '@prisma/client';
 import { PrismaService } from '../../../common/services/prisma.service';
 import { PrismaErrorMapper } from '../../../common/infrastructure/persistence/prisma-error.mapper';
 import { IJobFollowUpRepository } from '../../domain/repositories/job-follow-up.repository.interface';
@@ -72,7 +73,7 @@ export class PrismaJobFollowUpRepository implements IJobFollowUpRepository {
     await this.prisma.jobFollowUp.delete({ where: { id } });
   }
 
-  private map(p: any): JobFollowUpEntity {
+  private map(p: JobFollowUp): JobFollowUpEntity {
     return new JobFollowUpEntity(
       p.id,
       p.jobId,

@@ -8,6 +8,7 @@ import {
   AuthUserSelect,
   AuthUserWithSecurity,
 } from '../../domain/repositories/auth-user.repository.interface';
+import { AuthUser as PrismaAuthUser } from '@prisma/client';
 import { AuthUserEntity } from '../../domain/entities/auth-user.entity';
 
 @Injectable()
@@ -202,7 +203,7 @@ export class PrismaAuthUserRepository implements IAuthUserRepository {
     }
   }
 
-  private map(p: any): AuthUserEntity {
+  private map(p: PrismaAuthUser): AuthUserEntity {
     return new AuthUserEntity(
       p.id,
       p.email,

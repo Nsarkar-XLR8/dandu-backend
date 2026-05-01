@@ -38,3 +38,6 @@ export {
   PaginationDto,
   createPaginatedResponse,
 } from './api-pagination.decorator';
+
+export { RequestMeta } from './request-metadata.decorator';
+export type { RequestMetadata } from './request-metadata.decorator';
