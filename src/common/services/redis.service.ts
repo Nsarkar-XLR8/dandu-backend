@@ -1,6 +1,6 @@
 import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
 import { Redis as RedisType } from 'ioredis';
-import { REDIS_CLIENT } from '../modules/redis.module';
+import { REDIS_CLIENT } from '../constants/redis.constants';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 import { ICacheStore } from '../domain/interfaces/cache-store.interface';

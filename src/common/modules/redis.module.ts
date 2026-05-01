@@ -5,8 +5,7 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 import { CACHE_STORE_TOKEN } from '../domain/interfaces/cache-store.interface';
 import { RedisService } from '../services/redis.service';
-
-export const REDIS_CLIENT = Symbol('REDIS_CLIENT');
+import { REDIS_CLIENT } from '../constants/redis.constants';
 
 const createRedisClient = (
   configService: ConfigService,
