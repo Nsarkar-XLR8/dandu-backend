@@ -1,13 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RegisterService } from './register.service';
 import { AuthUtilsService } from './auth-utils.service';
-import { ActivityLogService } from '../../../common/services/activity-log.service';
-import { AppConfigService } from '../../../common/config/app-config.service';
-import { CustomLoggerService } from '../../../common/services/custom-logger.service';
 import AppError from '../../../common/errors/app.error';
 import * as bcrypt from 'bcryptjs';
+import { ACTIVITY_RECORDER_TOKEN } from '../../../common/domain/interfaces/activity-recorder.interface';
+import { APP_CONFIG_TOKEN } from '../../../common/domain/interfaces/app-config.interface';
 import { CACHE_STORE_TOKEN } from '../../../common/domain/interfaces/cache-store.interface';
 import { EMAIL_SENDER_TOKEN } from '../../../common/domain/interfaces/email-sender.interface';
+import { LOGGER_TOKEN } from '../../../common/domain/interfaces/logger.interface';
 import { PASSWORD_HASHER_TOKEN } from '../../../common/domain/interfaces/password-hasher.interface';
 import { AUTH_USER_REPOSITORY_TOKEN } from '../../domain/repositories/auth-user.repository.interface';
 import { AUTH_SECURITY_REPOSITORY_TOKEN } from '../../domain/repositories/auth-security.repository.interface';
@@ -102,9 +102,50 @@ describe('RegisterService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        RegisterService,
+        {
+          provide: RegisterService,
+          useFactory: (
+            authUtilsService,
+            activityRecorder,
+            appConfig,
+            logger,
+            cacheStore,
+            emailSender,
+            passwordHasher,
+            authUserRepo,
+            authSecurityRepo,
+            emailHistoryRepo,
+            unitOfWork,
+          ) =>
+            new RegisterService(
+              authUtilsService,
+              activityRecorder,
+              appConfig,
+              logger,
+              cacheStore,
+              emailSender,
+              passwordHasher,
+              authUserRepo,
+              authSecurityRepo,
+              emailHistoryRepo,
+              unitOfWork,
+            ),
+          inject: [
+            AuthUtilsService,
+            ACTIVITY_RECORDER_TOKEN,
+            APP_CONFIG_TOKEN,
+            LOGGER_TOKEN,
+            CACHE_STORE_TOKEN,
+            EMAIL_SENDER_TOKEN,
+            PASSWORD_HASHER_TOKEN,
+            AUTH_USER_REPOSITORY_TOKEN,
+            AUTH_SECURITY_REPOSITORY_TOKEN,
+            EMAIL_HISTORY_REPOSITORY_TOKEN,
+            UNIT_OF_WORK_TOKEN,
+          ],
+        },
         { provide: AuthUtilsService, useValue: mockAuthUtilsService },
-        { provide: ActivityLogService, useValue: mockActivityLogService },
+        { provide: ACTIVITY_RECORDER_TOKEN, useValue: mockActivityLogService },
         { provide: CACHE_STORE_TOKEN, useValue: mockCacheStore },
         { provide: EMAIL_SENDER_TOKEN, useValue: mockEmailSender },
         { provide: PASSWORD_HASHER_TOKEN, useValue: mockPasswordHasher },
@@ -113,8 +154,8 @@ describe('RegisterService', () => {
         { provide: EMAIL_HISTORY_REPOSITORY_TOKEN, useValue: mockEmailHistoryRepo },
         { provide: LOGIN_HISTORY_REPOSITORY_TOKEN, useValue: mockLoginHistoryRepo },
         { provide: UNIT_OF_WORK_TOKEN, useValue: mockUnitOfWork },
-        { provide: CustomLoggerService, useValue: mockCustomLoggerService },
-        { provide: AppConfigService, useValue: mockAppConfig },
+        { provide: LOGGER_TOKEN, useValue: mockCustomLoggerService },
+        { provide: APP_CONFIG_TOKEN, useValue: mockAppConfig },
       ],
     }).compile();
 

@@ -1,13 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
 import AppError from '../../../common/errors/app.error';
-import { AppConfigService } from '../../../common/config/app-config.service';
-import { CustomLoggerService } from '../../../common/services/custom-logger.service';
-import { AUTH_CONFIG } from '../../config/auth.config';
-import {
-  CACHE_STORE_TOKEN,
-  type ICacheStore,
-} from '../../../common/domain/interfaces/cache-store.interface';
-import { AUTH_USER_REPOSITORY_TOKEN } from '../../domain/repositories/auth-user.repository.interface';
+import { AUTH_POLICY } from '../policies/auth.policy';
+import type { IAppConfig } from '../../../common/domain/interfaces/app-config.interface';
+import type { ILogger } from '../../../common/domain/interfaces/logger.interface';
+import type { ICacheStore } from '../../../common/domain/interfaces/cache-store.interface';
 import type { IAuthUserRepository } from '../../domain/repositories/auth-user.repository.interface';
 import { AuthUtilsService } from './auth-utils.service';
 import type {
@@ -16,15 +11,12 @@ import type {
   userRole,
 } from '../../interfaces/auth.interface';
 
-@Injectable()
 export class TokenService {
   constructor(
     private readonly authUtilsService: AuthUtilsService,
-    private readonly appConfig: AppConfigService,
-    private readonly customLogger: CustomLoggerService,
-    @Inject(CACHE_STORE_TOKEN)
+    private readonly appConfig: IAppConfig,
+    private readonly customLogger: ILogger,
     private readonly cacheStore: ICacheStore,
-    @Inject(AUTH_USER_REPOSITORY_TOKEN)
     private readonly authUserRepo: IAuthUserRepository,
   ) {}
 
@@ -63,10 +55,10 @@ export class TokenService {
 
       const tokenHash = this.authUtilsService.hashToken(refreshToken);
       const refreshTokenTTL = this.authUtilsService.parseExpiryToSeconds(
-        AUTH_CONFIG.TOKEN_EXPIRY.REFRESH,
+        AUTH_POLICY.TOKEN_EXPIRY.REFRESH,
       );
 
-      const refreshTokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.REFRESH_TOKEN}:${user.id}:${jti}`;
+      const refreshTokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.REFRESH_TOKEN}:${user.id}:${jti}`;
 
       const storedTokenData: IStoredRefreshToken = {
         userId: user.id,
@@ -91,7 +83,7 @@ export class TokenService {
       // Enforce max devices
       await this.enforceMaxDevices(
         user.id,
-        AUTH_CONFIG.SESSION.MAX_DEVICES_PER_USER,
+        AUTH_POLICY.SESSION.MAX_DEVICES_PER_USER,
       ).catch((err) => {
         this.customLogger.warn(
           `Failed to enforce max devices for user ${user.id}: ${err.message}`,
@@ -109,7 +101,7 @@ export class TokenService {
           role: user.role,
           verified: true, // If we're creating a session, they are verified (or it's OAuth)
         },
-        expiresIn: this.authUtilsService.parseExpiryToSeconds(AUTH_CONFIG.TOKEN_EXPIRY.ACCESS),
+        expiresIn: this.authUtilsService.parseExpiryToSeconds(AUTH_POLICY.TOKEN_EXPIRY.ACCESS),
       };
     } finally {
       await this.cacheStore.del(lockKey);
@@ -135,7 +127,7 @@ export class TokenService {
     }
 
     const { userId, jti } = decoded;
-    const refreshTokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${jti}`;
+    const refreshTokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${jti}`;
     const storedData = await this.cacheStore.get<IStoredRefreshToken>(refreshTokenKey);
 
     if (!storedData) {
@@ -175,8 +167,8 @@ export class TokenService {
     );
 
     const newTokenHash = this.authUtilsService.hashToken(newRefreshToken);
-    const refreshTokenTTL = this.authUtilsService.parseExpiryToSeconds(AUTH_CONFIG.TOKEN_EXPIRY.REFRESH);
-    const newRefreshTokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${newJti}`;
+    const refreshTokenTTL = this.authUtilsService.parseExpiryToSeconds(AUTH_POLICY.TOKEN_EXPIRY.REFRESH);
+    const newRefreshTokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${newJti}`;
 
     await this.cacheStore.set(newRefreshTokenKey, {
       userId,
@@ -194,7 +186,7 @@ export class TokenService {
     return {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
-      expiresIn: this.authUtilsService.parseExpiryToSeconds(AUTH_CONFIG.TOKEN_EXPIRY.ACCESS),
+      expiresIn: this.authUtilsService.parseExpiryToSeconds(AUTH_POLICY.TOKEN_EXPIRY.ACCESS),
     };
   }
 
@@ -202,11 +194,11 @@ export class TokenService {
     try {
       const payload = this.authUtilsService.verifyRefreshToken(refreshToken);
       if (payload.jti && payload.userId === userId) {
-        const refreshTokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${payload.jti}`;
+        const refreshTokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${payload.jti}`;
         await this.cacheStore.del(refreshTokenKey);
         
         // Remove from session list
-        const sessionKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.USER_SESSIONS}:${userId}`;
+        const sessionKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.USER_SESSIONS}:${userId}`;
         const sessions = (await this.cacheStore.get<string[]>(sessionKey)) || [];
         const updatedSessions = sessions.filter((id) => id !== payload.jti);
         await this.cacheStore.set(sessionKey, updatedSessions);
@@ -224,11 +216,11 @@ export class TokenService {
   }
 
   async revokeAllUserTokens(userId: string): Promise<void> {
-    const sessionKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.USER_SESSIONS}:${userId}`;
+    const sessionKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.USER_SESSIONS}:${userId}`;
     const sessions = (await this.cacheStore.get<string[]>(sessionKey)) || [];
 
     for (const jti of sessions) {
-      const tokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${jti}`;
+      const tokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${jti}`;
       await this.cacheStore.del(tokenKey);
     }
 
@@ -245,7 +237,7 @@ export class TokenService {
   }
 
   private async addUserSession(userId: string, jti: string, ttl: number): Promise<void> {
-    const sessionKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.USER_SESSIONS}:${userId}`;
+    const sessionKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.USER_SESSIONS}:${userId}`;
     const sessions = (await this.cacheStore.get<string[]>(sessionKey)) || [];
     if (!sessions.includes(jti)) {
       sessions.push(jti);
@@ -254,13 +246,13 @@ export class TokenService {
   }
 
   private async enforceMaxDevices(userId: string, maxDevices: number): Promise<void> {
-    const sessionKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.USER_SESSIONS}:${userId}`;
+    const sessionKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.USER_SESSIONS}:${userId}`;
     const sessions = (await this.cacheStore.get<string[]>(sessionKey)) || [];
 
     if (sessions.length > maxDevices) {
       const sessionsToRemove = sessions.slice(0, sessions.length - maxDevices);
       for (const jti of sessionsToRemove) {
-        const tokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${jti}`;
+        const tokenKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.REFRESH_TOKEN}:${userId}:${jti}`;
         await this.cacheStore.del(tokenKey);
       }
       const remainingSessions = sessions.slice(sessions.length - maxDevices);

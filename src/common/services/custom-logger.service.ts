@@ -2,10 +2,11 @@ import { Inject, Injectable, LoggerService } from '@nestjs/common';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
 
+import { ILogger } from '../domain/interfaces/logger.interface';
 import { RequestStorage } from './request-storage.service';
 
 @Injectable()
-export class CustomLoggerService implements LoggerService {
+export class CustomLoggerService implements LoggerService, ILogger {
   constructor(
     @Inject(WINSTON_MODULE_PROVIDER)
     private readonly logger: Logger,

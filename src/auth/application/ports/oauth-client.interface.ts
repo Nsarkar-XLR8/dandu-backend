@@ -6,6 +6,14 @@ import { IGoogleTokenResponse, IGoogleUserInfo } from '../../interfaces/google-o
  */
 export interface IOAuthClient {
   /**
+   * Build a provider authorization URL.
+   */
+  createAuthorizationUrl(request: {
+    state: string;
+    codeChallenge: string;
+  }): string;
+
+  /**
    * Exchange authorization code for tokens
    */
   exchangeCodeForTokens(code: string, codeVerifier: string): Promise<IGoogleTokenResponse>;

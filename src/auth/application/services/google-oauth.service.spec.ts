@@ -3,13 +3,13 @@ import { GoogleOAuthService } from './google-oauth.service';
 import { TokenService } from './token.service';
 import { LoginService } from './login.service';
 import { OAUTH_CLIENT_TOKEN } from '../ports/oauth-client.interface';
-import { CustomLoggerService } from '../../../common/services/custom-logger.service';
 import { RedisService } from '../../../common/services/redis.service';
-import { AppConfigService } from '../../../common/config/app-config.service';
 import { PrismaService } from '../../../common/services/prisma.service';
-import { ActivityLogService } from '../../../common/services/activity-log.service';
 import { AuthUtilsService } from './auth-utils.service';
+import { ACTIVITY_RECORDER_TOKEN } from '../../../common/domain/interfaces/activity-recorder.interface';
+import { APP_CONFIG_TOKEN } from '../../../common/domain/interfaces/app-config.interface';
 import { CACHE_STORE_TOKEN } from '../../../common/domain/interfaces/cache-store.interface';
+import { LOGGER_TOKEN } from '../../../common/domain/interfaces/logger.interface';
 import { AUTH_USER_REPOSITORY_TOKEN } from '../../domain/repositories/auth-user.repository.interface';
 import { AUTH_SECURITY_REPOSITORY_TOKEN } from '../../domain/repositories/auth-security.repository.interface';
 import { LOGIN_HISTORY_REPOSITORY_TOKEN } from '../../domain/repositories/login-history.repository.interface';
@@ -99,9 +99,13 @@ describe('GoogleOAuthService', () => {
   };
 
   const mockOAuthClient = {
-    getTokens: jest.fn(),
+    createAuthorizationUrl: jest.fn(
+      ({ state, codeChallenge }: { state: string; codeChallenge: string }) =>
+        `https://accounts.google.com/o/oauth2/v2/auth?client_id=test-client-id&redirect_uri=http%3A%2F%2Flocalhost%3A5000%2Fauth%2Fgoogle%2Fcallback&response_type=code&scope=openid+email+profile&code_challenge=${codeChallenge}&code_challenge_method=S256&state=${state}`,
+    ),
+    exchangeCodeForTokens: jest.fn(),
+    getUserInfo: jest.fn(),
     verifyIdToken: jest.fn(),
-    getUserProfile: jest.fn(),
     revokeToken: jest.fn(),
   };
 
@@ -114,13 +118,57 @@ describe('GoogleOAuthService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        GoogleOAuthService,
         {
-          provide: CustomLoggerService,
+          provide: GoogleOAuthService,
+          useFactory: (
+            logger,
+            appConfig,
+            cacheStore,
+            activityRecorder,
+            authUtilsService,
+            tokenService,
+            loginService,
+            authUserRepo,
+            authSecurityRepo,
+            userProfileRepo,
+            unitOfWork,
+            oauthClient,
+          ) =>
+            new GoogleOAuthService(
+              logger,
+              appConfig,
+              cacheStore,
+              activityRecorder,
+              authUtilsService,
+              tokenService,
+              loginService,
+              authUserRepo,
+              authSecurityRepo,
+              userProfileRepo,
+              unitOfWork,
+              oauthClient,
+            ),
+          inject: [
+            LOGGER_TOKEN,
+            APP_CONFIG_TOKEN,
+            CACHE_STORE_TOKEN,
+            ACTIVITY_RECORDER_TOKEN,
+            AuthUtilsService,
+            TokenService,
+            LoginService,
+            AUTH_USER_REPOSITORY_TOKEN,
+            AUTH_SECURITY_REPOSITORY_TOKEN,
+            USER_PROFILE_REPOSITORY_TOKEN,
+            UNIT_OF_WORK_TOKEN,
+            OAUTH_CLIENT_TOKEN,
+          ],
+        },
+        {
+          provide: LOGGER_TOKEN,
           useValue: mockCustomLoggerService,
         },
         {
-          provide: AppConfigService,
+          provide: APP_CONFIG_TOKEN,
           useValue: mockAppConfigService,
         },
         {
@@ -149,7 +197,7 @@ describe('GoogleOAuthService', () => {
           useValue: mockPrismaService,
         },
         {
-          provide: ActivityLogService,
+          provide: ACTIVITY_RECORDER_TOKEN,
           useValue: mockActivityLogService,
         },
         {
@@ -176,7 +224,6 @@ describe('GoogleOAuthService', () => {
           provide: UNIT_OF_WORK_TOKEN,
           useValue: mockUnitOfWork,
         },
-        AppConfigService,
       ],
     }).compile();
 

@@ -1,22 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common';
 import AppError from '../../../common/errors/app.error';
-import { CustomLoggerService } from '../../../common/services/custom-logger.service';
-import { AUTH_CONFIG } from '../../config/auth.config';
-import {
-  PASSWORD_HASHER_TOKEN,
-  type IPasswordHasher,
-} from '../../../common/domain/interfaces/password-hasher.interface';
-import { AUTH_USER_REPOSITORY_TOKEN } from '../../domain/repositories/auth-user.repository.interface';
+import { AUTH_POLICY } from '../policies/auth.policy';
+import type { ILogger } from '../../../common/domain/interfaces/logger.interface';
+import type { IPasswordHasher } from '../../../common/domain/interfaces/password-hasher.interface';
 import type { IAuthUserRepository } from '../../domain/repositories/auth-user.repository.interface';
-import { AUTH_SECURITY_REPOSITORY_TOKEN } from '../../domain/repositories/auth-security.repository.interface';
 import type { IAuthSecurityRepository } from '../../domain/repositories/auth-security.repository.interface';
-import { LOGIN_HISTORY_REPOSITORY_TOKEN } from '../../domain/repositories/login-history.repository.interface';
 import type { ILoginHistoryRepository } from '../../domain/repositories/login-history.repository.interface';
 import { AuthUtilsService } from './auth-utils.service';
 import { TokenService } from './token.service';
 import type { ILoginResponse } from '../../interfaces/auth.interface';
 
-@Injectable()
 export class LoginService {
   private static readonly DUMMY_PASSWORD_HASH =
     '$2b$12$/1ViEnMS3JJ99L.OpLR8pu/iUhTO4gm.segG0raYko6GET68t0MZq';
@@ -24,14 +16,10 @@ export class LoginService {
   constructor(
     private readonly authUtilsService: AuthUtilsService,
     private readonly tokenService: TokenService,
-    private readonly customLogger: CustomLoggerService,
-    @Inject(PASSWORD_HASHER_TOKEN)
+    private readonly customLogger: ILogger,
     private readonly passwordHasher: IPasswordHasher,
-    @Inject(AUTH_USER_REPOSITORY_TOKEN)
     private readonly authUserRepo: IAuthUserRepository,
-    @Inject(AUTH_SECURITY_REPOSITORY_TOKEN)
     private readonly authSecurityRepo: IAuthSecurityRepository,
-    @Inject(LOGIN_HISTORY_REPOSITORY_TOKEN)
     private readonly loginHistoryRepo: ILoginHistoryRepository,
   ) {}
 
@@ -42,8 +30,8 @@ export class LoginService {
     const { email, password } = payload;
     const { ip, userAgent, device } = meta;
 
-    const { LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS } = AUTH_CONFIG.RATE_LIMIT;
-    const { MAX_FAILED_ATTEMPTS, LOCKOUT_DURATION_MS } = AUTH_CONFIG.ACCOUNT_LOCKOUT;
+    const { LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS } = AUTH_POLICY.RATE_LIMIT;
+    const { MAX_FAILED_ATTEMPTS, LOCKOUT_DURATION_MS } = AUTH_POLICY.ACCOUNT_LOCKOUT;
 
     // Rate limiting
     await Promise.all([

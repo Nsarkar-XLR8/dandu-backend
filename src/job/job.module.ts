@@ -9,6 +9,8 @@ import { JOB_FOLLOW_UP_REPOSITORY_TOKEN } from './domain/repositories/job-follow
 import { JOB_NOTE_REPOSITORY_TOKEN } from './domain/repositories/job-note.repository.interface';
 import { JOB_TIMELINE_REPOSITORY_TOKEN } from './domain/repositories/job-timeline.repository.interface';
 import { ACTIVITY_LOG_REPOSITORY_TOKEN } from '../common/domain/repositories/activity-log.repository.interface';
+import { LOGGER_TOKEN } from '../common/domain/interfaces/logger.interface';
+import { UNIT_OF_WORK_TOKEN } from '../common/domain/interfaces/unit-of-work.interface';
 
 // Prisma adapters (implementations)
 import { PrismaJobRepository } from './infrastructure/persistence/prisma-job.repository';
@@ -30,7 +32,36 @@ import { PrismaActivityLogRepository } from '../common/infrastructure/persistenc
   imports: [AuthModule],
   controllers: [JobController],
   providers: [
-    JobService,
+    {
+      provide: JobService,
+      useFactory: (
+        jobRepo,
+        followUpRepo,
+        noteRepo,
+        timelineRepo,
+        unitOfWork,
+        activityLogRepo,
+        logger,
+      ) =>
+        new JobService(
+          jobRepo,
+          followUpRepo,
+          noteRepo,
+          timelineRepo,
+          unitOfWork,
+          activityLogRepo,
+          logger,
+        ),
+      inject: [
+        JOB_REPOSITORY_TOKEN,
+        JOB_FOLLOW_UP_REPOSITORY_TOKEN,
+        JOB_NOTE_REPOSITORY_TOKEN,
+        JOB_TIMELINE_REPOSITORY_TOKEN,
+        UNIT_OF_WORK_TOKEN,
+        ACTIVITY_LOG_REPOSITORY_TOKEN,
+        LOGGER_TOKEN,
+      ],
+    },
     // Port → Adapter bindings
     { provide: JOB_REPOSITORY_TOKEN, useClass: PrismaJobRepository },
     {

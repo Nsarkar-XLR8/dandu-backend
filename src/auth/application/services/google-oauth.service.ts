@@ -1,40 +1,22 @@
-import { Injectable, Inject } from '@nestjs/common';
 import crypto from 'node:crypto';
-import { CustomLoggerService } from '../../../common/services/custom-logger.service';
-import { AppConfigService } from '../../../common/config/app-config.service';
-import { ActivityLogService } from '../../../common/services/activity-log.service';
 import { AuthUtilsService } from './auth-utils.service';
 import { TokenService } from './token.service';
 import { LoginService } from './login.service';
-import {
-  CACHE_STORE_TOKEN,
-  type ICacheStore,
-} from '../../../common/domain/interfaces/cache-store.interface';
-import { OAUTH_CLIENT_TOKEN } from '../ports/oauth-client.interface';
+import type { ICacheStore } from '../../../common/domain/interfaces/cache-store.interface';
+import type { IActivityRecorder } from '../../../common/domain/interfaces/activity-recorder.interface';
+import type { IAppConfig } from '../../../common/domain/interfaces/app-config.interface';
+import type { ILogger } from '../../../common/domain/interfaces/logger.interface';
 import type { IOAuthClient } from '../ports/oauth-client.interface';
+import { GOOGLE_OAUTH_POLICY } from '../policies/google-oauth.policy';
 import {
-  GOOGLE_OAUTH_CONFIG,
-  getGoogleOAuthCredentials,
-} from '../../config/google-oauth.config';
-import { AUTH_CONFIG } from '../../config/auth.config';
-import {
-  IGoogleTokenResponse,
   IGoogleUserInfo,
   IGoogleOAuthState,
   IGoogleOAuthLoginResponse,
-  IGoogleIdTokenClaims,
 } from '../../interfaces/google-oauth.interface';
-import { IStoredRefreshToken, userRole } from '../../interfaces/auth.interface';
 import AppError from '../../../common/errors/app.error';
-import { AUTH_USER_REPOSITORY_TOKEN } from '../../domain/repositories/auth-user.repository.interface';
 import type { IAuthUserRepository } from '../../domain/repositories/auth-user.repository.interface';
-import { AUTH_SECURITY_REPOSITORY_TOKEN } from '../../domain/repositories/auth-security.repository.interface';
 import type { IAuthSecurityRepository } from '../../domain/repositories/auth-security.repository.interface';
-import { LOGIN_HISTORY_REPOSITORY_TOKEN } from '../../domain/repositories/login-history.repository.interface';
-import type { ILoginHistoryRepository } from '../../domain/repositories/login-history.repository.interface';
-import { USER_PROFILE_REPOSITORY_TOKEN } from '../../domain/repositories/user-profile.repository.interface';
 import type { IUserProfileRepository } from '../../domain/repositories/user-profile.repository.interface';
-import { UNIT_OF_WORK_TOKEN } from '../../../common/domain/interfaces/unit-of-work.interface';
 import type { IUnitOfWork } from '../../../common/domain/interfaces/unit-of-work.interface';
 import { AuthUserEntity } from '../../domain/entities/auth-user.entity';
 
@@ -44,30 +26,21 @@ import { AuthUserEntity } from '../../domain/entities/auth-user.entity';
  * Google OAuth Service
  * Implements Google OAuth 2.0 with PKCE (Proof Key for Code Exchange)
  */
-@Injectable()
 export class GoogleOAuthService {
   private readonly context = 'GoogleOAuthService';
 
   constructor(
-    private readonly customLogger: CustomLoggerService,
-    private readonly appConfig: AppConfigService,
-    @Inject(CACHE_STORE_TOKEN)
+    private readonly customLogger: ILogger,
+    private readonly appConfig: IAppConfig,
     private readonly cacheStore: ICacheStore,
-    private readonly activityLogService: ActivityLogService,
+    private readonly activityLogService: IActivityRecorder,
     private readonly authUtilsService: AuthUtilsService,
     private readonly tokenService: TokenService,
     private readonly loginService: LoginService,
-    @Inject(AUTH_USER_REPOSITORY_TOKEN)
     private readonly authUserRepo: IAuthUserRepository,
-    @Inject(AUTH_SECURITY_REPOSITORY_TOKEN)
     private readonly authSecurityRepo: IAuthSecurityRepository,
-    @Inject(LOGIN_HISTORY_REPOSITORY_TOKEN)
-    private readonly loginHistoryRepo: ILoginHistoryRepository,
-    @Inject(USER_PROFILE_REPOSITORY_TOKEN)
     private readonly userProfileRepo: IUserProfileRepository,
-    @Inject(UNIT_OF_WORK_TOKEN)
     private readonly unitOfWork: IUnitOfWork,
-    @Inject(OAUTH_CLIENT_TOKEN)
     private readonly oauthClient: IOAuthClient,
   ) {}
 
@@ -117,8 +90,6 @@ export class GoogleOAuthService {
     meta: { ip: string; userAgent: string },
     redirectUrl?: string,
   ): Promise<{ url: string; state: string }> {
-    const { clientId, redirectUri } = getGoogleOAuthCredentials();
-
     // Generate state and PKCE parameters
     const state = this.generateStateToken();
     const codeVerifier = this.generateCodeVerifier();
@@ -134,27 +105,17 @@ export class GoogleOAuthService {
       createdAt: new Date().toISOString(),
     };
 
-    const stateKey = `${this.appConfig.redis_cache_key_prefix}:${GOOGLE_OAUTH_CONFIG.STATE.CACHE_PREFIX}:${state}`;
+    const stateKey = `${this.appConfig.redis_cache_key_prefix}:${GOOGLE_OAUTH_POLICY.STATE.CACHE_PREFIX}:${state}`;
     await this.cacheStore.set(
       stateKey,
       stateData,
-      GOOGLE_OAUTH_CONFIG.STATE.TTL_SECONDS,
+      GOOGLE_OAUTH_POLICY.STATE.TTL_SECONDS,
     );
 
-    // Build authorization URL
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: GOOGLE_OAUTH_CONFIG.RESPONSE_TYPE,
-      scope: GOOGLE_OAUTH_CONFIG.SCOPES.join(' '),
-      access_type: GOOGLE_OAUTH_CONFIG.ACCESS_TYPE,
-      prompt: GOOGLE_OAUTH_CONFIG.PROMPT,
+    const authUrl = this.oauthClient.createAuthorizationUrl({
       state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
+      codeChallenge,
     });
-
-    const authUrl = `${GOOGLE_OAUTH_CONFIG.ENDPOINTS.AUTHORIZATION}?${params.toString()}`;
 
     this.customLogger.log(
       `Generated Google OAuth authorization URL for IP: ${meta.ip}`,
@@ -178,7 +139,7 @@ export class GoogleOAuthService {
     const { ip, userAgent, device } = meta;
 
     // Validate state parameter
-    const stateKey = `${this.appConfig.redis_cache_key_prefix}:${GOOGLE_OAUTH_CONFIG.STATE.CACHE_PREFIX}:${state}`;
+    const stateKey = `${this.appConfig.redis_cache_key_prefix}:${GOOGLE_OAUTH_POLICY.STATE.CACHE_PREFIX}:${state}`;
     const stateData = await this.cacheStore.get<IGoogleOAuthState>(stateKey);
 
     if (!stateData) {

@@ -1,11 +1,3 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { CustomLoggerService } from '../../../common/services/custom-logger.service';
-import { JOB_REPOSITORY_TOKEN } from '../../domain/repositories/job.repository.interface';
-import { JOB_FOLLOW_UP_REPOSITORY_TOKEN } from '../../domain/repositories/job-follow-up.repository.interface';
-import { JOB_NOTE_REPOSITORY_TOKEN } from '../../domain/repositories/job-note.repository.interface';
-import { JOB_TIMELINE_REPOSITORY_TOKEN } from '../../domain/repositories/job-timeline.repository.interface';
-import { UNIT_OF_WORK_TOKEN } from '../../../common/domain/interfaces/unit-of-work.interface';
-import { ACTIVITY_LOG_REPOSITORY_TOKEN } from '../../../common/domain/repositories/activity-log.repository.interface';
 import type { IJobRepository } from '../../domain/repositories/job.repository.interface';
 import type { IJobFollowUpRepository } from '../../domain/repositories/job-follow-up.repository.interface';
 import type { IJobNoteRepository } from '../../domain/repositories/job-note.repository.interface';
@@ -15,6 +7,7 @@ import type {
   IActivityLogRepository,
   ActivityLogMetadata,
 } from '../../../common/domain/repositories/activity-log.repository.interface';
+import type { ILogger } from '../../../common/domain/interfaces/logger.interface';
 import {
   AuthorizationException,
   EntityNotFoundException,
@@ -24,15 +17,15 @@ import { JobFollowUpEntity } from '../../domain/entities/job-follow-up.entity';
 import { JobNoteEntity } from '../../domain/entities/job-note.entity';
 import { JobTimelineEventEntity } from '../../domain/entities/job-timeline-event.entity';
 import {
-  CreateJobDto,
-  UpdateJobDto,
-  JobFilterDto,
-  CreateJobFollowUpDto,
-  UpdateJobFollowUpDto,
-  CompleteJobFollowUpDto,
-  CreateJobNoteDto,
-  UpdateJobNoteDto,
-} from '../../dto';
+  CompleteJobFollowUpCommand,
+  CreateJobCommand,
+  CreateJobFollowUpCommand,
+  CreateJobNoteCommand,
+  JobFilterCommand,
+  UpdateJobCommand,
+  UpdateJobFollowUpCommand,
+  UpdateJobNoteCommand,
+} from '../commands/job.commands';
 
 /**
  * Job Application Service (Application Layer)
@@ -46,22 +39,15 @@ import {
  * - Activity logging goes through the IActivityLogRepository port
  * - All business logic stays in domain entities where possible
  */
-@Injectable()
 export class JobService {
   constructor(
-    @Inject(JOB_REPOSITORY_TOKEN)
     private readonly jobRepo: IJobRepository,
-    @Inject(JOB_FOLLOW_UP_REPOSITORY_TOKEN)
     private readonly followUpRepo: IJobFollowUpRepository,
-    @Inject(JOB_NOTE_REPOSITORY_TOKEN)
     private readonly noteRepo: IJobNoteRepository,
-    @Inject(JOB_TIMELINE_REPOSITORY_TOKEN)
     private readonly timelineRepo: IJobTimelineRepository,
-    @Inject(UNIT_OF_WORK_TOKEN)
     private readonly unitOfWork: IUnitOfWork,
-    @Inject(ACTIVITY_LOG_REPOSITORY_TOKEN)
     private readonly activityLogRepo: IActivityLogRepository,
-    private readonly customLogger: CustomLoggerService,
+    private readonly customLogger: ILogger,
   ) {}
 
   // ================================
@@ -70,7 +56,7 @@ export class JobService {
 
   async createJob(
     authId: string,
-    createJobDto: CreateJobDto,
+    createJobDto: CreateJobCommand,
     meta: ActivityLogMetadata,
   ) {
     this.customLogger.log(
@@ -201,7 +187,7 @@ export class JobService {
     return job;
   }
 
-  async findAllJobs(authId: string, filterDto: JobFilterDto) {
+  async findAllJobs(authId: string, filterDto: JobFilterCommand) {
     return this.jobRepo.findAllByUser(authId, filterDto);
   }
 
@@ -229,7 +215,7 @@ export class JobService {
   async updateJob(
     authId: string,
     jobId: string,
-    updateJobDto: UpdateJobDto,
+    updateJobDto: UpdateJobCommand,
     meta: ActivityLogMetadata,
   ) {
     const existingJob = await this.findJobById(authId, jobId);
@@ -422,7 +408,7 @@ export class JobService {
   async createFollowUp(
     authId: string,
     jobId: string,
-    dto: CreateJobFollowUpDto,
+    dto: CreateJobFollowUpCommand,
   ) {
     await this.findJobById(authId, jobId);
 
@@ -476,7 +462,7 @@ export class JobService {
     authId: string,
     jobId: string,
     followUpId: string,
-    dto: UpdateJobFollowUpDto,
+    dto: UpdateJobFollowUpCommand,
   ) {
     await this.findJobById(authId, jobId);
     const followUp = await this.followUpRepo.findById(followUpId);
@@ -498,7 +484,7 @@ export class JobService {
     authId: string,
     jobId: string,
     followUpId: string,
-    dto: CompleteJobFollowUpDto,
+    dto: CompleteJobFollowUpCommand,
   ) {
     await this.findJobById(authId, jobId);
     const followUp = await this.followUpRepo.findById(followUpId);
@@ -506,7 +492,7 @@ export class JobService {
       throw new EntityNotFoundException('Follow-up', followUpId);
 
     return this.unitOfWork.execute(async (ctx) => {
-      followUp.complete(dto.response);
+      followUp.complete(dto.response ?? undefined);
       if (dto.status) followUp.status = dto.status;
       const saved = await this.followUpRepo.save(followUp, ctx);
 
@@ -533,7 +519,7 @@ export class JobService {
   // Note Operations
   // ================================
 
-  async createNote(authId: string, jobId: string, dto: CreateJobNoteDto) {
+  async createNote(authId: string, jobId: string, dto: CreateJobNoteCommand) {
     await this.findJobById(authId, jobId);
 
     return this.unitOfWork.execute(async (ctx) => {
@@ -575,7 +561,7 @@ export class JobService {
     authId: string,
     jobId: string,
     noteId: string,
-    dto: UpdateJobNoteDto,
+    dto: UpdateJobNoteCommand,
   ) {
     await this.findJobById(authId, jobId);
     const note = await this.noteRepo.findById(noteId);
@@ -642,7 +628,7 @@ export class JobService {
     return this.jobRepo.getStatistics(authId);
   }
 
-  private toJobPatch(dto: UpdateJobDto): JobPatch {
+  private toJobPatch(dto: UpdateJobCommand): JobPatch {
     return {
       company: dto.company,
       companyUrl:
@@ -689,7 +675,7 @@ export class JobService {
           ? (dto.jobPostingUrl ?? null)
           : undefined,
       responseDate:
-        dto.responseDate !== undefined ? new Date(dto.responseDate) : undefined,
+        this.toNullableDate(dto.responseDate),
       techStack: dto.techStack,
       jobDescription:
         dto.jobDescription !== undefined
@@ -704,9 +690,7 @@ export class JobService {
       benefits: dto.benefits !== undefined ? (dto.benefits ?? null) : undefined,
       interviewScheduled: dto.interviewScheduled,
       interviewDate:
-        dto.interviewDate !== undefined
-          ? new Date(dto.interviewDate)
-          : undefined,
+        this.toNullableDate(dto.interviewDate),
       interviewType:
         dto.interviewType !== undefined
           ? (dto.interviewType ?? null)
@@ -730,11 +714,9 @@ export class JobService {
       offerAmount:
         dto.offerAmount !== undefined ? (dto.offerAmount ?? null) : undefined,
       offerDate:
-        dto.offerDate !== undefined ? new Date(dto.offerDate) : undefined,
+        this.toNullableDate(dto.offerDate),
       offerDeadline:
-        dto.offerDeadline !== undefined
-          ? new Date(dto.offerDeadline)
-          : undefined,
+        this.toNullableDate(dto.offerDeadline),
       offerNotes:
         dto.offerNotes !== undefined ? (dto.offerNotes ?? null) : undefined,
       rejectionReason:
@@ -742,9 +724,7 @@ export class JobService {
           ? (dto.rejectionReason ?? null)
           : undefined,
       rejectionDate:
-        dto.rejectionDate !== undefined
-          ? new Date(dto.rejectionDate)
-          : undefined,
+        this.toNullableDate(dto.rejectionDate),
       notes: dto.notes !== undefined ? (dto.notes ?? null) : undefined,
       aiParsedData:
         dto.aiParsedData !== undefined ? (dto.aiParsedData ?? null) : undefined,
@@ -758,14 +738,18 @@ export class JobService {
           ? (dto.rawJobPosting ?? null)
           : undefined,
       nextFollowUpDate:
-        dto.nextFollowUpDate !== undefined
-          ? new Date(dto.nextFollowUpDate)
-          : undefined,
+        this.toNullableDate(dto.nextFollowUpDate),
       followUpCount: dto.followUpCount,
       lastFollowUpDate:
-        dto.lastFollowUpDate !== undefined
-          ? new Date(dto.lastFollowUpDate)
-          : undefined,
+        this.toNullableDate(dto.lastFollowUpDate),
     };
+  }
+
+  private toNullableDate(
+    value: string | null | undefined,
+  ): Date | null | undefined {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    return new Date(value);
   }
 }

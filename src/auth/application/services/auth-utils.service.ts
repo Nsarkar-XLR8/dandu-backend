@@ -1,36 +1,39 @@
-import { Inject, Injectable } from '@nestjs/common';
-import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
-import { Response } from 'express';
 import {
   IAccessTokenPayload,
   IRefreshTokenPayload,
   ITokenPayload,
   userRole,
 } from '../../interfaces/auth.interface';
-import { AUTH_CONFIG } from '../../config/auth.config';
+import { AUTH_POLICY } from '../policies/auth.policy';
 import AppError from '../../../common/errors/app.error';
 import crypto from 'crypto';
+import type { ICacheStore } from '../../../common/domain/interfaces/cache-store.interface';
+import type { IAppConfig } from '../../../common/domain/interfaces/app-config.interface';
 import {
-  CACHE_STORE_TOKEN,
-  type ICacheStore,
-} from '../../../common/domain/interfaces/cache-store.interface';
-import { AppConfigService } from '../../../common/config/app-config.service';
+  type ITokenSigner,
+  type TokenSignOptions,
+} from '../../../common/domain/interfaces/token-signer.interface';
 
 interface TokenOptions {
   isRefresh?: boolean;
-  expiresIn?: SignOptions['expiresIn'];
+  expiresIn?: TokenSignOptions['expiresIn'];
 }
+
+type VerifiedToken<T extends object> = T & {
+  iat?: number;
+  exp?: number;
+  jti?: string;
+};
 
 /**
  * Authentication Utility Service
  * Provides various authentication-related utilities
  */
-@Injectable()
 export class AuthUtilsService {
   constructor(
-    @Inject(CACHE_STORE_TOKEN)
     private readonly cacheStore: ICacheStore,
-    private readonly appConfig: AppConfigService,
+    private readonly appConfig: IAppConfig,
+    private readonly tokenSigner: ITokenSigner,
   ) {}
 
   /**
@@ -61,19 +64,19 @@ export class AuthUtilsService {
    */
   createAccessToken(
     payload: IAccessTokenPayload,
-    expiresIn?: SignOptions['expiresIn'],
+    expiresIn?: TokenSignOptions['expiresIn'],
   ): string {
     const secret = this.appConfig.jwt_access_secret;
     if (!secret) {
       throw AppError.internalServerError('JWT access secret is not configured');
     }
 
-    const signOptions: SignOptions = {
-      expiresIn: expiresIn || AUTH_CONFIG.TOKEN_EXPIRY.ACCESS,
+    const signOptions: TokenSignOptions = {
+      expiresIn: expiresIn || AUTH_POLICY.TOKEN_EXPIRY.ACCESS,
       algorithm: 'HS256',
     };
 
-    return jwt.sign(payload, secret, signOptions);
+    return this.tokenSigner.sign({ ...payload }, secret, signOptions);
   }
 
   /**
@@ -82,7 +85,7 @@ export class AuthUtilsService {
   createRefreshToken(
     payload: IRefreshTokenPayload,
     jti: string,
-    expiresIn?: SignOptions['expiresIn'],
+    expiresIn?: TokenSignOptions['expiresIn'],
   ): string {
     const secret = this.appConfig.jwt_refresh_secret;
     if (!secret) {
@@ -91,13 +94,13 @@ export class AuthUtilsService {
       );
     }
 
-    const signOptions: SignOptions = {
-      expiresIn: expiresIn || AUTH_CONFIG.TOKEN_EXPIRY.REFRESH,
+    const signOptions: TokenSignOptions = {
+      expiresIn: expiresIn || AUTH_POLICY.TOKEN_EXPIRY.REFRESH,
       algorithm: 'HS256',
       jwtid: jti, // Embed JTI in JWT standard claim
     };
 
-    return jwt.sign(payload, secret, signOptions);
+    return this.tokenSigner.sign({ ...payload }, secret, signOptions);
   }
 
   /**
@@ -111,7 +114,7 @@ export class AuthUtilsService {
       : this.appConfig.jwt_access_secret;
     const defaultExpiry = isRefresh ? '7d' : '1h';
 
-    const signOptions: SignOptions = {
+    const signOptions: TokenSignOptions = {
       expiresIn: expiresIn || defaultExpiry,
       algorithm: 'HS256',
     };
@@ -120,63 +123,52 @@ export class AuthUtilsService {
       throw AppError.internalServerError('JWT secret is not configured');
     }
 
-    return jwt.sign(payload, secret, signOptions);
+    return this.tokenSigner.sign({ ...payload }, secret, signOptions);
   }
 
   /**
    * Verifies an access token
    */
-  verifyAccessToken(token: string): IAccessTokenPayload & JwtPayload {
+  verifyAccessToken(token: string): VerifiedToken<IAccessTokenPayload> {
     const secret = this.appConfig.jwt_access_secret;
     if (!secret) {
       throw AppError.internalServerError('JWT access secret is not configured');
     }
-    return jwt.verify(token, secret) as IAccessTokenPayload & JwtPayload;
+    return this.tokenSigner.verify<VerifiedToken<IAccessTokenPayload>>(
+      token,
+      secret,
+    );
   }
 
   /**
    * Verifies a refresh token and returns payload with JTI
    */
-  verifyRefreshToken(token: string): IRefreshTokenPayload & JwtPayload {
+  verifyRefreshToken(token: string): VerifiedToken<IRefreshTokenPayload> {
     const secret = this.appConfig.jwt_refresh_secret;
     if (!secret) {
       throw AppError.internalServerError(
         'JWT refresh secret is not configured',
       );
     }
-    return jwt.verify(token, secret) as IRefreshTokenPayload & JwtPayload;
+    return this.tokenSigner.verify<VerifiedToken<IRefreshTokenPayload>>(
+      token,
+      secret,
+    );
   }
 
   /**
    * @deprecated Use verifyAccessToken or verifyRefreshToken
    * Verifies a JWT token
    */
-  verifyToken(token: string): JwtPayload {
+  verifyToken(token: string): VerifiedToken<Record<string, unknown>> {
     const secret = this.appConfig.jwt_access_secret;
     if (!secret) {
       throw AppError.internalServerError('JWT secret is not configured');
     }
-    return jwt.verify(token, secret) as JwtPayload;
-  }
-
-  /**
-   * Removes user tokens from cache and cookies
-   */
-  async removeTokens(
-    res: Response,
-    prefix: string,
-    email: string,
-  ): Promise<void> {
-    const accessTokenKey = `${prefix}:user:${email}:accessToken`;
-    const refreshTokenKey = `${prefix}:user:${email}:refreshToken`;
-
-    await Promise.all([
-      this.cacheStore.del(accessTokenKey),
-      this.cacheStore.del(refreshTokenKey),
-    ]);
-
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    return this.tokenSigner.verify<VerifiedToken<Record<string, unknown>>>(
+      token,
+      secret,
+    );
   }
 
   /**
@@ -187,7 +179,7 @@ export class AuthUtilsService {
     maxAttempts: number,
     windowMs: number,
   ): Promise<boolean> {
-    const cacheKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.RATE_LIMIT}${key}`;
+    const cacheKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.RATE_LIMIT}${key}`;
     const lockKey = `${cacheKey}:locked`;
 
     // First check if we're in a locked state
@@ -221,7 +213,7 @@ export class AuthUtilsService {
    * Validates password strength
    */
   validatePassword(password: string): boolean {
-    const { PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS } = AUTH_CONFIG;
+    const { PASSWORD_MIN_LENGTH, PASSWORD_REQUIREMENTS } = AUTH_POLICY;
 
     if (password.length < PASSWORD_MIN_LENGTH) {
       return false;
@@ -257,7 +249,7 @@ export class AuthUtilsService {
     targetUserRole: userRole,
     newRole: userRole,
   ): boolean {
-    const { ROLE_HIERARCHY } = AUTH_CONFIG;
+    const { ROLE_HIERARCHY } = AUTH_POLICY;
 
     // Super admin can modify any role except other super admins
     if (currentUserRole === userRole.SUPER_ADMIN) {

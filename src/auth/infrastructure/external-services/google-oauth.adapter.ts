@@ -21,6 +21,26 @@ export class GoogleOAuthAdapter implements IOAuthClient {
     });
   }
 
+  createAuthorizationUrl(request: {
+    state: string;
+    codeChallenge: string;
+  }): string {
+    const { clientId, redirectUri } = getGoogleOAuthCredentials();
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: GOOGLE_OAUTH_CONFIG.RESPONSE_TYPE,
+      scope: GOOGLE_OAUTH_CONFIG.SCOPES.join(' '),
+      access_type: GOOGLE_OAUTH_CONFIG.ACCESS_TYPE,
+      prompt: GOOGLE_OAUTH_CONFIG.PROMPT,
+      state: request.state,
+      code_challenge: request.codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    return `${GOOGLE_OAUTH_CONFIG.ENDPOINTS.AUTHORIZATION}?${params.toString()}`;
+  }
+
   async exchangeCodeForTokens(code: string, codeVerifier: string): Promise<IGoogleTokenResponse> {
     const { clientId, clientSecret, redirectUri } = getGoogleOAuthCredentials();
 

@@ -1,74 +1,52 @@
-import { Inject, Injectable } from '@nestjs/common';
 import AppError from '../../../common/errors/app.error';
-import { ActivityLogService } from '../../../common/services/activity-log.service';
-import { AppConfigService } from '../../../common/config/app-config.service';
-import { CustomLoggerService } from '../../../common/services/custom-logger.service';
-import { AUTH_CONFIG } from '../../config/auth.config';
-import { CreateAuthDto } from '../../dto/create-auth.dto';
+import { AUTH_POLICY } from '../policies/auth.policy';
 import { AuthUserEntity } from '../../domain/entities/auth-user.entity';
-import {
-  CACHE_STORE_TOKEN,
-  type ICacheStore,
-} from '../../../common/domain/interfaces/cache-store.interface';
-import {
-  EMAIL_SENDER_TOKEN,
-  type IEmailSender,
-} from '../../../common/domain/interfaces/email-sender.interface';
-import {
-  PASSWORD_HASHER_TOKEN,
-  type IPasswordHasher,
-} from '../../../common/domain/interfaces/password-hasher.interface';
-import { AUTH_USER_REPOSITORY_TOKEN } from '../../domain/repositories/auth-user.repository.interface';
+import { RegisterUserCommand } from '../commands/register.commands';
+import type { IActivityRecorder } from '../../../common/domain/interfaces/activity-recorder.interface';
+import type { IAppConfig } from '../../../common/domain/interfaces/app-config.interface';
+import type { ICacheStore } from '../../../common/domain/interfaces/cache-store.interface';
+import type { IEmailSender } from '../../../common/domain/interfaces/email-sender.interface';
+import type { IPasswordHasher } from '../../../common/domain/interfaces/password-hasher.interface';
 import type { IAuthUserRepository } from '../../domain/repositories/auth-user.repository.interface';
-import { AUTH_SECURITY_REPOSITORY_TOKEN } from '../../domain/repositories/auth-security.repository.interface';
 import type { IAuthSecurityRepository } from '../../domain/repositories/auth-security.repository.interface';
-import { EMAIL_HISTORY_REPOSITORY_TOKEN } from '../../domain/repositories/email-history.repository.interface';
 import type { IEmailHistoryRepository } from '../../domain/repositories/email-history.repository.interface';
-import { UNIT_OF_WORK_TOKEN } from '../../../common/domain/interfaces/unit-of-work.interface';
 import type { IUnitOfWork } from '../../../common/domain/interfaces/unit-of-work.interface';
+import type { ILogger } from '../../../common/domain/interfaces/logger.interface';
 import { AuthUtilsService } from './auth-utils.service';
 
-@Injectable()
 export class RegisterService {
   constructor(
     private readonly authUtilsService: AuthUtilsService,
-    private readonly activityLogService: ActivityLogService,
-    private readonly appConfig: AppConfigService,
-    private readonly customLogger: CustomLoggerService,
-    @Inject(CACHE_STORE_TOKEN)
+    private readonly activityLogService: IActivityRecorder,
+    private readonly appConfig: IAppConfig,
+    private readonly customLogger: ILogger,
     private readonly cacheStore: ICacheStore,
-    @Inject(EMAIL_SENDER_TOKEN)
     private readonly emailSender: IEmailSender,
-    @Inject(PASSWORD_HASHER_TOKEN)
     private readonly passwordHasher: IPasswordHasher,
-    @Inject(AUTH_USER_REPOSITORY_TOKEN)
     private readonly authUserRepo: IAuthUserRepository,
-    @Inject(AUTH_SECURITY_REPOSITORY_TOKEN)
     private readonly authSecurityRepo: IAuthSecurityRepository,
-    @Inject(EMAIL_HISTORY_REPOSITORY_TOKEN)
     private readonly emailHistoryRepo: IEmailHistoryRepository,
-    @Inject(UNIT_OF_WORK_TOKEN)
     private readonly unitOfWork: IUnitOfWork,
   ) {}
 
   async create(
-    payload: CreateAuthDto,
+    payload: RegisterUserCommand,
     meta: { ip: string; userAgent: string; device?: string; requestId?: string },
   ): Promise<void> {
     const { ip, userAgent, device } = meta;
     const { email, password, username } = payload;
-    const { VERIFICATION } = AUTH_CONFIG.TOKEN_EXPIRY;
+    const { VERIFICATION } = AUTH_POLICY.TOKEN_EXPIRY;
 
     await Promise.all([
       this.authUtilsService.checkRateLimit(
         `register:email:${email}`,
-        AUTH_CONFIG.RATE_LIMIT.LOGIN_MAX_ATTEMPTS,
-        AUTH_CONFIG.RATE_LIMIT.LOGIN_WINDOW_MS,
+        AUTH_POLICY.RATE_LIMIT.LOGIN_MAX_ATTEMPTS,
+        AUTH_POLICY.RATE_LIMIT.LOGIN_WINDOW_MS,
       ),
       this.authUtilsService.checkRateLimit(
         `register:ip:${ip}`,
-        AUTH_CONFIG.RATE_LIMIT.LOGIN_MAX_ATTEMPTS,
-        AUTH_CONFIG.RATE_LIMIT.LOGIN_WINDOW_MS,
+        AUTH_POLICY.RATE_LIMIT.LOGIN_MAX_ATTEMPTS,
+        AUTH_POLICY.RATE_LIMIT.LOGIN_WINDOW_MS,
       ),
     ]);
 
@@ -173,7 +151,7 @@ export class RegisterService {
     });
 
     // Store verification code in Redis with expiry
-    const verificationKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.VERIFICATION_TOKEN}:${email}`;
+    const verificationKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.VERIFICATION_TOKEN}:${email}`;
     const ttlSeconds = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
 
     await this.cacheStore.set(
@@ -227,7 +205,7 @@ export class RegisterService {
       `Email verification attempt for: ${email}`,
       'RegisterService',
     );
-    const verificationKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.VERIFICATION_TOKEN}:${email}`;
+    const verificationKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.VERIFICATION_TOKEN}:${email}`;
 
     // Get verification data from Redis
     const verificationData = await this.cacheStore.get<{
@@ -317,7 +295,7 @@ export class RegisterService {
     meta: { ip: string; userAgent: string; requestId?: string },
   ): Promise<{ message: string }> {
     const { ip, userAgent } = meta;
-    const { VERIFICATION } = AUTH_CONFIG.TOKEN_EXPIRY;
+    const { VERIFICATION } = AUTH_POLICY.TOKEN_EXPIRY;
 
     this.customLogger.log(
       `Resend verification email requested for: ${email}`,
@@ -348,7 +326,7 @@ export class RegisterService {
     );
 
     // Store new verification code in Redis
-    const verificationKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_CONFIG.CACHE_PREFIXES.VERIFICATION_TOKEN}:${email}`;
+    const verificationKey = `${this.appConfig.redis_cache_key_prefix}:${AUTH_POLICY.CACHE_PREFIXES.VERIFICATION_TOKEN}:${email}`;
     const ttlSeconds = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
 
     await this.cacheStore.set(

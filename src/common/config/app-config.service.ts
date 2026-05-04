@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { IAppConfig } from '../domain/interfaces/app-config.interface';
 import config from './app.config';
 
 @Injectable()
-export class AppConfigService {
+export class AppConfigService implements IAppConfig {
   get jwt_access_secret(): string {
     return config.jwt_access_secret;
   }

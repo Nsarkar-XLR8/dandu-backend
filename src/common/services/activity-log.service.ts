@@ -6,6 +6,7 @@ import {
   FieldChange,
 } from '../domain/repositories/activity-log.repository.interface';
 import type { IActivityLogRepository } from '../domain/repositories/activity-log.repository.interface';
+import { IActivityRecorder } from '../domain/interfaces/activity-recorder.interface';
 import { ITransactionContext } from '../domain/interfaces/unit-of-work.interface';
 
 export type {
@@ -23,7 +24,7 @@ export type {
  * construct persistence adapters directly.
  */
 @Injectable()
-export class ActivityLogService {
+export class ActivityLogService implements IActivityRecorder {
   constructor(
     private readonly customLogger: CustomLoggerService,
     @Inject(ACTIVITY_LOG_REPOSITORY_TOKEN)

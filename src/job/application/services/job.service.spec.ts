@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { CustomLoggerService } from '../../../common/services/custom-logger.service';
 import { ACTIVITY_LOG_REPOSITORY_TOKEN } from '../../../common/domain/repositories/activity-log.repository.interface';
+import { LOGGER_TOKEN } from '../../../common/domain/interfaces/logger.interface';
 import {
   ITransactionContext,
   UNIT_OF_WORK_TOKEN,
@@ -143,14 +143,43 @@ describe('JobService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        JobService,
+        {
+          provide: JobService,
+          useFactory: (
+            jobRepo,
+            followUpRepo,
+            noteRepo,
+            timelineRepo,
+            unitOfWork,
+            activityLogRepo,
+            logger,
+          ) =>
+            new JobService(
+              jobRepo,
+              followUpRepo,
+              noteRepo,
+              timelineRepo,
+              unitOfWork,
+              activityLogRepo,
+              logger,
+            ),
+          inject: [
+            JOB_REPOSITORY_TOKEN,
+            JOB_FOLLOW_UP_REPOSITORY_TOKEN,
+            JOB_NOTE_REPOSITORY_TOKEN,
+            JOB_TIMELINE_REPOSITORY_TOKEN,
+            UNIT_OF_WORK_TOKEN,
+            ACTIVITY_LOG_REPOSITORY_TOKEN,
+            LOGGER_TOKEN,
+          ],
+        },
         { provide: JOB_REPOSITORY_TOKEN, useValue: jobRepo },
         { provide: JOB_FOLLOW_UP_REPOSITORY_TOKEN, useValue: followUpRepo },
         { provide: JOB_NOTE_REPOSITORY_TOKEN, useValue: noteRepo },
         { provide: JOB_TIMELINE_REPOSITORY_TOKEN, useValue: timelineRepo },
         { provide: UNIT_OF_WORK_TOKEN, useValue: unitOfWork },
         { provide: ACTIVITY_LOG_REPOSITORY_TOKEN, useValue: activityLogRepo },
-        { provide: CustomLoggerService, useValue: logger },
+        { provide: LOGGER_TOKEN, useValue: logger },
       ],
     }).compile();
 

@@ -2,7 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthUtilsService } from './auth-utils.service';
 import { RedisService } from '../../../common/services/redis.service';
 import { CACHE_STORE_TOKEN } from '../../../common/domain/interfaces/cache-store.interface';
-import { AppConfigService } from '../../../common/config/app-config.service';
+import { APP_CONFIG_TOKEN } from '../../../common/domain/interfaces/app-config.interface';
+import { TOKEN_SIGNER_TOKEN } from '../../../common/domain/interfaces/token-signer.interface';
 
 describe('AuthUtilsService', () => {
   let service: AuthUtilsService;
@@ -13,10 +14,26 @@ describe('AuthUtilsService', () => {
     del: jest.fn(),
   };
 
+  const mockAppConfig = {
+    jwt_access_secret: 'access-secret',
+    jwt_refresh_secret: 'refresh-secret',
+    redis_cache_key_prefix: 'test',
+  };
+
+  const mockTokenSigner = {
+    sign: jest.fn(),
+    verify: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        AuthUtilsService,
+        {
+          provide: AuthUtilsService,
+          useFactory: (cacheStore, appConfig, tokenSigner) =>
+            new AuthUtilsService(cacheStore, appConfig, tokenSigner),
+          inject: [CACHE_STORE_TOKEN, APP_CONFIG_TOKEN, TOKEN_SIGNER_TOKEN],
+        },
         {
           provide: RedisService,
           useValue: mockRedisService,
@@ -25,7 +42,14 @@ describe('AuthUtilsService', () => {
           provide: CACHE_STORE_TOKEN,
           useValue: mockRedisService,
         },
-        AppConfigService,
+        {
+          provide: APP_CONFIG_TOKEN,
+          useValue: mockAppConfig,
+        },
+        {
+          provide: TOKEN_SIGNER_TOKEN,
+          useValue: mockTokenSigner,
+        },
       ],
     }).compile();
 
