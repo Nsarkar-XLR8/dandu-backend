@@ -45,7 +45,7 @@ const config: AppConfig = {
   google_client_id: process.env.GOOGLE_CLIENT_ID || '',
   google_client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
   google_redirect_uri: process.env.GOOGLE_REDIRECT_URI || '',
-  cors_origins: parseCsv(process.env.CORS_ORIGINS),
+  cors_origins: parseCsv(process.env.CORS_ORIGINS || 'http://localhost:5173,https://dandu-frontend.vercel.app'),
 };
 
 export default config;
