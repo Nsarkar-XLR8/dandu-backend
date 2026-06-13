@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Patch,
   Post,
   Body,
   Req,
@@ -31,6 +32,7 @@ import {
   LoginDto,
   RefreshTokenDto,
   ResendOtpDto,
+  UpdateProfileDto,
   VerifyOtpDto,
 } from '../../dto/auth-flow.dto';
 import {
@@ -45,6 +47,7 @@ import {
   RequestMeta,
   type RequestMetadata,
 } from '../../../../common/decorators/request-metadata.decorator';
+import { PrismaService } from '../../../../common/services/prisma.service';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; role: string; tokenVersion: number };
@@ -61,6 +64,7 @@ export class AuthController {
     private readonly passwordService: PasswordService,
     private readonly accessTokenAuthenticator: AccessTokenAuthenticator,
     private readonly customLogger: CustomLoggerService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // Strict rate limit for registration: 5 requests per 15 minutes
@@ -459,6 +463,85 @@ export class AuthController {
     return {
       success: true,
       ...result,
+    };
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('me')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'Current user profile retrieved' })
+  async me(@Req() req: AuthenticatedRequest) {
+    const user = await this.prisma.authUser.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        role: true,
+        verified: true,
+        status: true,
+        provider: true,
+        createdAt: true,
+        updatedAt: true,
+        userProfile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            bio: true,
+            avatarUrl: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+
+    return {
+      message: 'Current user profile retrieved',
+      data: user,
+    };
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch('profile')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  async updateProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body() payload: UpdateProfileDto,
+  ) {
+    const profile = await this.prisma.userProfile.upsert({
+      where: { authId: req.user.userId },
+      create: {
+        authId: req.user.userId,
+        firstName: payload.firstName ?? null,
+        lastName: payload.lastName ?? null,
+        bio: payload.bio ?? null,
+        avatarUrl: payload.avatarUrl ?? null,
+      },
+      update: {
+        firstName: payload.firstName ?? null,
+        lastName: payload.lastName ?? null,
+        bio: payload.bio ?? null,
+        avatarUrl: payload.avatarUrl ?? null,
+      },
+      select: {
+        firstName: true,
+        lastName: true,
+        bio: true,
+        avatarUrl: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      message: 'Profile updated successfully',
+      data: profile,
     };
   }
 
