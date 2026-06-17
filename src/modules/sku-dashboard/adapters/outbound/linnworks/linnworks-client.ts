@@ -18,6 +18,8 @@ interface AuthSession {
 interface AuthResponse {
   Token?: string;
   token?: string;
+  AccessToken?: string;
+  accessToken?: string;
   Server?: string;
   server?: string;
   Ttl?: number;
@@ -26,6 +28,9 @@ interface AuthResponse {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 @Injectable()
 export class LinnworksClient implements ILinnworksClient {
@@ -75,20 +80,34 @@ export class LinnworksClient implements ILinnworksClient {
   }): Promise<LinnworksPagedOrders> {
     return this.request<LinnworksPagedOrders>(
       '/api/ProcessedOrders/SearchProcessedOrdersPaged',
-      new URLSearchParams({
+      {
         from: input.from.toISOString(),
         to: input.to.toISOString(),
         dateType: 'PROCESSED',
         searchField: '',
-        exactMatch: 'false',
+        exactMatch: false,
         searchTerm: '',
-        pageNum: input.pageNum.toString(),
-        numEntriesPerPage: Math.min(this.config.linnworks_orders_page_size, 200).toString(),
-      }),
+        pageNum: input.pageNum,
+        numEntriesPerPage: Math.min(
+          this.config.linnworks_orders_page_size,
+          200,
+        ),
+      },
+      {
+        emptyValue: {
+          PageNumber: input.pageNum,
+          EntriesPerPage: Math.min(this.config.linnworks_orders_page_size, 200),
+          TotalEntries: 0,
+          TotalPages: 0,
+          Data: [],
+        },
+      },
     );
   }
 
-  async getOrderItemsByOrderIds(orderIds: string[]): Promise<LinnworksOrderItem[]> {
+  async getOrderItemsByOrderIds(
+    orderIds: string[],
+  ): Promise<LinnworksOrderItem[]> {
     if (orderIds.length === 0) return [];
 
     return this.request<LinnworksOrderItem[]>(
@@ -99,11 +118,20 @@ export class LinnworksClient implements ILinnworksClient {
     );
   }
 
-  private async request<T>(path: string, body: unknown): Promise<T> {
-    const session = await this.authorize();
-    const url = `${session.server.replace(/\/$/, '')}${path}`;
+  private async request<T>(
+    path: string,
+    body: unknown,
+    options: { emptyValue?: T } = {},
+  ): Promise<T> {
+    let session = await this.authorize();
+    let url = `${session.server.replace(/\/$/, '')}${path}`;
+    let refreshedAfterUnauthorized = false;
 
-    for (let attempt = 0; attempt <= this.config.linnworks_retry_attempts; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt <= this.config.linnworks_retry_attempts;
+      attempt += 1
+    ) {
       await this.waitForRateLimitSlot();
 
       try {
@@ -113,16 +141,33 @@ export class LinnworksClient implements ILinnworksClient {
 
         if (response.ok) return (await response.json()) as T;
 
+        if (
+          [401, 403].includes(response.status) &&
+          !refreshedAfterUnauthorized
+        ) {
+          this.session = null;
+          session = await this.authorize();
+          url = `${session.server.replace(/\/$/, '')}${path}`;
+          refreshedAfterUnauthorized = true;
+          attempt -= 1;
+          continue;
+        }
+
+        const text = await this.readResponseText(response);
+
         if (![429, 500, 502, 503, 504].includes(response.status)) {
-          const text = await response.text();
           if (response.status === 400 && text.includes('No items found')) {
-            return [] as unknown as T;
+            return options.emptyValue ?? ([] as unknown as T);
           }
-          throw new Error(`Linnworks request failed: ${response.status} - ${text}`);
+          throw new Error(
+            `Linnworks request failed: ${response.status} - ${text}`,
+          );
         }
 
         if (attempt === this.config.linnworks_retry_attempts) {
-          throw new Error(`Linnworks request failed after retries: ${response.status}`);
+          throw new Error(
+            `Linnworks request failed after retries: ${response.status} - ${text}`,
+          );
         }
       } catch (error) {
         if (attempt === this.config.linnworks_retry_attempts) throw error;
@@ -162,10 +207,15 @@ export class LinnworksClient implements ILinnworksClient {
     }
 
     const auth = (await response.json()) as AuthResponse;
-    const token = auth.Token || auth.token;
-    const server = auth.Server || auth.server || this.config.linnworks_default_server;
+    const token =
+      auth.Token || auth.token || auth.AccessToken || auth.accessToken;
+    const server =
+      auth.Server || auth.server || this.config.linnworks_default_server;
     const ttlMinutes =
-      auth.Ttl || auth.TTL || auth.ttl || this.config.linnworks_token_ttl_minutes;
+      auth.Ttl ||
+      auth.TTL ||
+      auth.ttl ||
+      this.config.linnworks_token_ttl_minutes;
 
     if (!token) {
       throw new Error('Linnworks authorization did not return a token');
@@ -191,25 +241,42 @@ export class LinnworksClient implements ILinnworksClient {
       this.config.linnworks_timeout_ms,
     );
 
-    const isUrlEncoded = body instanceof URLSearchParams;
     const requestHeaders: Record<string, string> = {
       accept: 'application/json',
+      'content-type': 'application/json',
       ...headers,
     };
-
-    if (!isUrlEncoded) {
-      requestHeaders['content-type'] = 'application/json';
-    }
 
     try {
       return await fetch(url, {
         method: 'POST',
         headers: requestHeaders,
-        body: isUrlEncoded ? body : JSON.stringify(body),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
     } finally {
       clearTimeout(timeout);
+    }
+  }
+
+  private async readResponseText(response: Response): Promise<string> {
+    const text = await response.text();
+
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (!isRecord(parsed)) return text;
+
+      const message =
+        parsed.Message ||
+        parsed.message ||
+        parsed.MessageDetail ||
+        parsed.messageDetail ||
+        parsed.Error ||
+        parsed.error;
+
+      return typeof message === 'string' ? message : text;
+    } catch {
+      return text;
     }
   }
 
