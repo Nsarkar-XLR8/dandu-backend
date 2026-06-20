@@ -442,6 +442,22 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
     return new Map(products.map((product) => [product.sku, product.id]));
   }
 
+  async updateProduct(sku: string, data: Partial<UpsertProductInput>): Promise<void> {
+    const updateData: Prisma.ProductUpdateInput = {};
+    if (data.cost !== undefined) updateData.cost = this.toDecimal(data.cost);
+    if (data.weight !== undefined) updateData.weight = this.toDecimal(data.weight);
+    if (data.length !== undefined) updateData.length = this.toDecimal(data.length);
+    if (data.width !== undefined) updateData.width = this.toDecimal(data.width);
+    if (data.height !== undefined) updateData.height = this.toDecimal(data.height);
+
+    if (Object.keys(updateData).length > 0) {
+      await this.prisma.product.update({
+        where: { sku },
+        data: updateData,
+      });
+    }
+  }
+
   private toDecimal(value?: number | null): Prisma.Decimal | null {
     return value === undefined || value === null ? null : new Prisma.Decimal(value);
   }

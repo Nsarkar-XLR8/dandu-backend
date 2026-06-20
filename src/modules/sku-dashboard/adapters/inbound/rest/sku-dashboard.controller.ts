@@ -24,6 +24,9 @@ import { GetDashboardMetricsService } from '../../../application/get-dashboard-m
 import { GetInventoryAlertsService } from '../../../application/get-inventory-alerts.service';
 import { RunLinnworksDailySyncService } from '../../../application/run-linnworks-daily-sync.service';
 import { LinnworksSyncQueue } from '../queue/linnworks-sync.queue';
+import { UpdateProductService } from '../../../application/update-product.service';
+import { UpdateProductDto } from '../../../dto/update-product.dto';
+import { Patch, Param } from '@nestjs/common';
 
 @ApiTags('SKU Dashboard')
 @ApiBearerAuth()
@@ -37,6 +40,7 @@ export class SkuDashboardController {
     private readonly getInventoryAlertsService: GetInventoryAlertsService,
     private readonly runLinnworksDailySyncService: RunLinnworksDailySyncService,
     private readonly linnworksSyncQueue: LinnworksSyncQueue,
+    private readonly updateProductService: UpdateProductService,
   ) {}
 
   @Get('search')
@@ -105,6 +109,19 @@ export class SkuDashboardController {
     return {
       message: 'Linnworks sync completed',
       data: result,
+    };
+  }
+
+  @Patch('product/:sku')
+  @ApiOperation({ summary: 'Update product metrics (cost, weight, dimensions)' })
+  @ApiResponse({ status: 200, description: 'Product updated successfully' })
+  async updateProduct(
+    @Param('sku') sku: string,
+    @Body() dto: UpdateProductDto,
+  ) {
+    await this.updateProductService.execute(sku, dto);
+    return {
+      message: 'Product updated successfully',
     };
   }
 }

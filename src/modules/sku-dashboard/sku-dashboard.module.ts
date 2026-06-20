@@ -24,6 +24,7 @@ import {
   ISkuRepository,
 } from './ports/outbound/sku-repository.port';
 import { PrismaSkuDashboardRepository } from './adapters/outbound/persistence/prisma-sku-dashboard.repository';
+import { UpdateProductService } from './application/update-product.service';
 
 @Module({
   imports: [
@@ -105,6 +106,12 @@ import { PrismaSkuDashboardRepository } from './adapters/outbound/persistence/pr
       useFactory: (csvParserService: CsvParserService) =>
         new ImportReportService(csvParserService),
       inject: [CsvParserService],
+    },
+    {
+      provide: UpdateProductService,
+      useFactory: (skuRepository: ISkuRepository) =>
+        new UpdateProductService(skuRepository),
+      inject: [SKU_REPOSITORY_TOKEN],
     },
   ],
 })

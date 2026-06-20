@@ -108,6 +108,7 @@ export interface ISkuRepository {
   replaceSalesMetrics(metrics: UpsertSalesMetricInput[]): Promise<number>;
   createSyncLog(input: SyncLogInput): Promise<string>;
   updateSyncLog(id: string, input: SyncLogInput): Promise<void>;
+  updateProduct(sku: string, data: Partial<UpsertProductInput>): Promise<void>;
 }
 
 export const SKU_REPOSITORY_TOKEN = Symbol('ISkuRepository');
