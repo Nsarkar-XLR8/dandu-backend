@@ -68,6 +68,18 @@ export interface UpsertChannelInput {
   isActive?: boolean;
 }
 
+export interface UpsertSalesMetricInput {
+  sku: string;
+  channel: 'AMAZON' | 'EBAY' | 'WALMART' | 'SHOPIFY' | 'WEBSITE' | 'OTHER';
+  country?: string | null;
+  periodStart: Date;
+  periodEnd: Date;
+  unitsSold: number;
+  revenue?: number;
+  velocity?: number | null;
+  currency?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Browse / filter types
 // ---------------------------------------------------------------------------
@@ -133,6 +145,7 @@ export interface ISkuRepository {
   upsertProduct(input: UpsertProductInput): Promise<{ id: string }>;
   upsertStock(input: UpsertStockInput): Promise<void>;
   upsertChannel(input: UpsertChannelInput): Promise<void>;
+  upsertSalesMetric(input: UpsertSalesMetricInput): Promise<void>;
 
   // Update mutable product fields
   updateProduct(sku: string, fields: Partial<UpsertProductInput>): Promise<void>;

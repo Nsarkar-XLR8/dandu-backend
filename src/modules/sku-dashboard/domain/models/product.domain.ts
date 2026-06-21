@@ -1,5 +1,5 @@
 export type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED';
-export type StockLocationType = 'FBA' | 'FBM' | 'WAREHOUSE' | 'THIRD_PARTY';
+export type StockLocationType = 'FBA' | 'FBM' | 'MFN' | 'WAREHOUSE' | 'THIRD_PARTY';
 export type SalesChannelType =
   | 'AMAZON'
   | 'EBAY'

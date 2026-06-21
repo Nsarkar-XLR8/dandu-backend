@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { SkuMetricsDomainModel } from '../../../../domain/models/product.domain';
+import { SkuMetricsDomainModel, StockLocationType } from '../../../../domain/models/product.domain';
 
 type ProductWithMetrics = Prisma.ProductGetPayload<{
   include: {
@@ -11,6 +11,9 @@ type ProductWithMetrics = Prisma.ProductGetPayload<{
 
 const decimalToNumber = (value: Prisma.Decimal | null): number | null =>
   value === null ? null : value.toNumber();
+
+const toResponseLocationType = (value: string): StockLocationType =>
+  (value === 'FBM' ? 'MFN' : value) as StockLocationType;
 
 export class SkuDashboardMapper {
   static toDomain(product: ProductWithMetrics): SkuMetricsDomainModel {
@@ -39,7 +42,7 @@ export class SkuDashboardMapper {
       },
       stock: product.stock.map((stock) => ({
         country: stock.country,
-        locationType: stock.locationType,
+        locationType: toResponseLocationType(stock.locationType),
         warehouse: stock.warehouse,
         quantity: stock.quantity,
         reserved: stock.reserved,

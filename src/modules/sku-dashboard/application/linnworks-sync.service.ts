@@ -4,6 +4,7 @@ import {
   LinnworksStockItem,
   LinnworksStockLevel,
   LinnworksChannelListing,
+  LinnworksSalesMetric,
 } from '../adapters/outbound/linnworks/linnworks-api.client';
 import { ISkuRepository, UpsertProductInput, UpsertStockInput, UpsertChannelInput } from '../ports/outbound/sku-repository.port';
 
@@ -12,6 +13,7 @@ export interface SyncResult {
   updatedSkus: number;
   updatedStock: number;
   updatedListings: number;
+  updatedSalesMetrics: number;
   syncedAt: string;
   durationMs: number;
 }
@@ -48,12 +50,55 @@ function extractCountryFromLocation(location: { LocationName: string; CountryNam
   return 'GB'; // sensible default for UK-based sellers
 }
 
+function extractCountryFromSubSource(subSource?: string | null): string | null {
+  if (!subSource) return null;
+  const value = subSource.toUpperCase();
+  if (value === 'US' || value.includes('AMAZON.COM') || value.includes('USA')) return 'US';
+  if (value === 'CA' || value.includes('AMAZON.CA') || value.includes('CANADA')) return 'CA';
+  if (value === 'GB' || value === 'UK' || value.includes('AMAZON.CO.UK')) return 'GB';
+  if (/^[A-Z]{2}$/.test(value)) return value;
+  return null;
+}
+
+function normalizeCountry(country?: string | null): string | null {
+  if (!country) return null;
+  const value = country.trim();
+  const upper = value.toUpperCase();
+  const MAP: Record<string, string> = {
+    'UNITED STATES': 'US',
+    USA: 'US',
+    US: 'US',
+    CANADA: 'CA',
+    CA: 'CA',
+    'UNITED KINGDOM': 'GB',
+    UK: 'GB',
+    GB: 'GB',
+  };
+  return MAP[upper] ?? (upper.length === 2 ? upper : upper.slice(0, 2));
+}
+
 function mapLocationType(location: { IsFulfillmentCenter: boolean; LocationName: string }): 'FBA' | 'FBM' | 'WAREHOUSE' | 'THIRD_PARTY' {
   const name = location.LocationName.toUpperCase();
   if (location.IsFulfillmentCenter || name.includes('FBA') || name.includes('AMAZON')) return 'FBA';
   if (name.includes('3PL') || name.includes('THIRD')) return 'THIRD_PARTY';
   if (name.includes('FBM')) return 'FBM';
   return 'WAREHOUSE';
+}
+
+function readExtendedProperty(item: LinnworksStockItem, names: string[]): string | null {
+  const normalizedNames = names.map((name) => name.toLowerCase());
+  const properties = item.ItemExtendedProperties ?? item.ExtendedProperties ?? [];
+  const match = properties.find((property) => {
+    const name = (property.ProperyName ?? property.PropertyName ?? '').toLowerCase();
+    return normalizedNames.includes(name);
+  });
+  return match?.PropertyValue ?? null;
+}
+
+function parseNullableNumber(value: string | null): number | null {
+  if (value == null || value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export class LinnworksSyncService {
@@ -69,6 +114,7 @@ export class LinnworksSyncService {
     let updatedSkus = 0;
     let updatedStock = 0;
     let updatedListings = 0;
+    let updatedSalesMetrics = 0;
     let failedRows = 0;
 
     this.logger.log('Linnworks sync started');
@@ -99,6 +145,9 @@ export class LinnworksSyncService {
           width:    item.Width ?? null,
           height:   item.Height ?? null,
           imageUrl: mainImage?.Source ?? null,
+          material: readExtendedProperty(item, ['Material', 'MaterialType', 'ProductMaterial']),
+          thickness: readExtendedProperty(item, ['Thickness', 'ProductThickness', 'ThicknessGauge']),
+          packQty: parseNullableNumber(readExtendedProperty(item, ['PackQty', 'Pack Qty', 'PackQuantity', 'QuantityPerPack'])),
         };
 
         try {
@@ -114,17 +163,18 @@ export class LinnworksSyncService {
       const stockItemIds = [...idToSku.keys()];
 
       // Batch fetch stock levels
-      const stockLevels: LinnworksStockLevel[] = await this.linnworksClient
-        .getStockLevelsBulk(stockItemIds)
-        .catch(async () => {
-          // Fallback: fetch one by one
-          const all: LinnworksStockLevel[] = [];
-          for (const id of stockItemIds) {
-            const levels = await this.linnworksClient.getStockLevels([id]).catch(() => []);
-            all.push(...levels);
-          }
-          return all;
-        });
+      const embeddedStockLevels = stockItems.flatMap((item) =>
+        (item.StockLevels ?? []).map((level) => ({
+          ...level,
+          StockItemId: level.StockItemId ?? item.StockItemId,
+        })),
+      );
+
+      const stockLevels: LinnworksStockLevel[] = embeddedStockLevels.length > 0
+        ? embeddedStockLevels
+        : await this.linnworksClient
+            .getStockLevelsBulk(stockItemIds)
+            .catch(async () => this.linnworksClient.getStockLevels(stockItemIds).catch(() => []));
 
       for (const level of stockLevels) {
         const sku = idToSku.get(level.StockItemId);
@@ -136,7 +186,7 @@ export class LinnworksSyncService {
           locationType: mapLocationType(level.Location),
           warehouse:   level.Location.LocationName,
           quantity:    level.StockLevel,
-          reserved:    level.InOrders,
+          reserved:    level.InOrders ?? level.InOrderBook ?? 0,
           inbound:     level.Due,
           available:   level.Available,
         };
@@ -159,13 +209,19 @@ export class LinnworksSyncService {
         const sku = idToSku.get(listing.StockItemId) ?? listing.SKU;
         if (!sku) continue;
 
+        const stockItem = stockItems.find((item) => item.StockItemId === listing.StockItemId);
+        const channelPrice = stockItem?.ItemChannelPrices?.find((price) =>
+          price.Source === listing.Source &&
+          (!listing.SubSource || price.SubSource === listing.SubSource),
+        );
+
         const channelInput: UpsertChannelInput = {
           sku,
           channel:   mapChannelSource(listing.Source, listing.SubSource),
-          country:   listing.SubSource?.length === 2 ? listing.SubSource.toUpperCase() : null,
+          country:   extractCountryFromSubSource(listing.SubSource),
           asin:      listing.ChannelReferenceId ?? null,
-          listingId: listing.ListingId ?? null,
-          price:     listing.Price ?? null,
+          listingId: listing.ListingId ?? listing.ChannelSKURowId ?? null,
+          price:     listing.Price ?? channelPrice?.Price ?? stockItem?.RetailPrice ?? null,
           currency:  listing.CurrencyCode ?? 'GBP',
           isActive:  true,
         };
@@ -179,20 +235,49 @@ export class LinnworksSyncService {
         }
       }
 
+      // 5. Fetch and upsert sales metrics from processed order details
+      const salesMetrics: LinnworksSalesMetric[] = await this.linnworksClient
+        .getSalesMetrics([7, 30, 90, 365])
+        .catch((err) => {
+          this.logger.warn(`Failed to fetch sales metrics: ${(err as Error).message}`);
+          return [];
+        });
+
+      for (const metric of salesMetrics) {
+        if (!metric.sku) continue;
+
+        try {
+          await this.skuRepository.upsertSalesMetric({
+            sku: metric.sku,
+            channel: mapChannelSource(metric.channelSource, metric.subSource),
+            country: extractCountryFromSubSource(metric.subSource) ?? normalizeCountry(metric.country),
+            periodStart: metric.periodStart,
+            periodEnd: metric.periodEnd,
+            unitsSold: metric.unitsSold,
+            revenue: metric.revenue,
+            currency: metric.currency ?? 'GBP',
+          });
+          updatedSalesMetrics++;
+        } catch (err) {
+          failedRows++;
+          this.logger.warn(`Failed to upsert sales metrics for ${metric.sku}: ${(err as Error).message}`);
+        }
+      }
+
       const durationMs = Date.now() - startedAt;
 
-      // 5. Write sync log
+      // 6. Write sync log
       await this.skuRepository.createSyncLog({
         provider: 'linnworks',
         processedRows: updatedSkus,
         failedRows,
         status: failedRows === 0 ? 'SUCCESS' : 'PARTIAL_SUCCESS',
         durationMs,
-        metadata: { updatedSkus, updatedStock, updatedListings },
+        metadata: { updatedSkus, updatedStock, updatedListings, updatedSalesMetrics },
       });
 
       this.logger.log(
-        `Linnworks sync complete: ${updatedSkus} SKUs, ${updatedStock} stock lines, ${updatedListings} listings — ${durationMs}ms`,
+        `Linnworks sync complete: ${updatedSkus} SKUs, ${updatedStock} stock lines, ${updatedListings} listings, ${updatedSalesMetrics} sales metrics — ${durationMs}ms`,
       );
 
       return {
@@ -200,6 +285,7 @@ export class LinnworksSyncService {
         updatedSkus,
         updatedStock,
         updatedListings,
+        updatedSalesMetrics,
         syncedAt: new Date().toISOString(),
         durationMs,
       };
@@ -223,6 +309,7 @@ export class LinnworksSyncService {
         updatedSkus,
         updatedStock,
         updatedListings,
+        updatedSalesMetrics,
         syncedAt: new Date().toISOString(),
         durationMs,
       };

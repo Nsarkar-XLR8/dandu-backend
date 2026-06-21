@@ -28,8 +28,19 @@ export interface LinnworksStockItem {
   Height?: number;
   RetailPrice?: number;
   PurchasePrice?: number;
+  StockLevels?: LinnworksStockLevel[];
+  ItemChannelPrices?: LinnworksStockItemPrice[];
+  ItemExtendedProperties?: Array<{ ProperyName?: string; PropertyName?: string; PropertyValue: string; ProperyType?: string; PropertyType?: string }>;
   Images?: Array<{ Source: string; IsMain: boolean }>;
-  ExtendedProperties?: Array<{ ProperyName: string; PropertyValue: string; ProperyType: string }>;
+  ExtendedProperties?: Array<{ ProperyName?: string; PropertyName?: string; PropertyValue: string; ProperyType?: string; PropertyType?: string }>;
+}
+
+export interface LinnworksStockItemPrice {
+  Source: string;
+  SubSource?: string;
+  Price?: number;
+  Tag?: string;
+  StockItemId?: string;
 }
 
 /**
@@ -45,15 +56,19 @@ export interface LinnworksStockLevel {
   };
   Available: number;
   InOrders: number;
+  InOrderBook?: number;
   Due: number;
   StockLevel: number;
+  MinimumLevel?: number;
   Minimum: number;
+  SKU?: string;
 }
 
 /**
  * A channel listing from Linnworks /api/Inventory/GetInventoryItemChannelSKUs
  */
 export interface LinnworksChannelListing {
+  ChannelSKURowId?: string;
   StockItemId: string;
   SKU: string;
   Source: string; // e.g. "AMAZON", "EBAY"
@@ -63,6 +78,56 @@ export interface LinnworksChannelListing {
   Price?: number;
   CurrencyCode?: string;
   IsMultiVariation: boolean;
+}
+
+export interface LinnworksProcessedOrderSummary {
+  pkOrderID: string;
+  dProcessedOn?: string;
+  Source?: string;
+  SubSource?: string;
+  cCountry?: string;
+  cCurrency?: string;
+}
+
+export interface LinnworksOrderDetails {
+  OrderId: string;
+  ProcessedDateTime?: string;
+  GeneralInfo?: {
+    Source?: string;
+    SubSource?: string;
+    SiteCode?: string;
+    ReceivedDate?: string;
+  };
+  CustomerInfo?: {
+    Address?: { Country?: string };
+  };
+  TotalsInfo?: {
+    Currency?: string;
+  };
+  Items?: LinnworksOrderItem[];
+}
+
+export interface LinnworksOrderItem {
+  SKU?: string;
+  ItemNumber?: string;
+  ItemSource?: string;
+  Quantity?: number;
+  PricePerUnit?: number;
+  Cost?: number;
+  StockItemId?: string;
+  CompositeSubItems?: LinnworksOrderItem[];
+}
+
+export interface LinnworksSalesMetric {
+  sku: string;
+  channelSource: string;
+  subSource?: string;
+  country?: string | null;
+  periodStart: Date;
+  periodEnd: Date;
+  unitsSold: number;
+  revenue: number;
+  currency?: string;
 }
 
 /**
@@ -180,6 +245,34 @@ export class LinnworksApiClient {
     return response.json() as Promise<T>;
   }
 
+  private normalizeArray<T>(response: unknown, keys: string[] = []): T[] {
+    if (Array.isArray(response)) return response as T[];
+    if (!response || typeof response !== 'object') return [];
+
+    const object = response as Record<string, unknown>;
+    for (const key of keys) {
+      if (Array.isArray(object[key])) return object[key] as T[];
+    }
+    for (const key of ['Items', 'Data', 'StockLevels', 'ProcessedOrders']) {
+      if (Array.isArray(object[key])) return object[key] as T[];
+    }
+    return [];
+  }
+
+  private normalizePagedData<T>(response: unknown): { data: T[]; totalPages?: number; totalEntries?: number } {
+    if (!response || typeof response !== 'object') {
+      return { data: this.normalizeArray<T>(response) };
+    }
+
+    const object = response as Record<string, any>;
+    const paged = object.ProcessedOrders ?? object;
+    return {
+      data: this.normalizeArray<T>(paged, ['Data', 'Items']),
+      totalPages: typeof paged.TotalPages === 'number' ? paged.TotalPages : undefined,
+      totalEntries: typeof paged.TotalEntries === 'number' ? paged.TotalEntries : undefined,
+    };
+  }
+
   private async post<T>(path: string, body: unknown): Promise<T> {
     await this.ensureToken();
 
@@ -233,25 +326,28 @@ export class LinnworksApiClient {
     const all: LinnworksStockItem[] = [];
 
     while (true) {
-      const result = await this.post<{ Items: LinnworksStockItem[]; TotalResults: number }>(
+      const result = await this.post<unknown>(
         '/api/Stock/GetStockItemsFull',
         {
-          request: {
-            PageNumber: page,
-            PageSize: PAGE_SIZE,
-            LoadCompositeParents: false,
-            LoadVariationParents: false,
-            DataRequirements: [0, 2, 3, 4, 5, 6, 8], // Core fields + images + extended props
-            SearchTypes: [0],
-            HasImages: null,
-            Filters: null,
-          },
+          keyword: '',
+          loadCompositeParents: false,
+          loadVariationParents: false,
+          entriesPerPage: PAGE_SIZE,
+          pageNumber: page,
+          dataRequirements: ['StockLevels', 'Pricing', 'ChannelPrice', 'ExtendedProperties', 'Images'],
+          searchTypes: ['SKU', 'Title', 'Barcode'],
         },
       );
 
-      all.push(...(result.Items ?? []));
+      const items = this.normalizeArray<LinnworksStockItem>(result, ['Items']);
+      all.push(...items);
 
-      if (all.length >= result.TotalResults) break;
+      const totalResults =
+        result && typeof result === 'object' && 'TotalResults' in result
+          ? Number((result as { TotalResults?: number }).TotalResults)
+          : undefined;
+      if (typeof totalResults === 'number' && all.length >= totalResults) break;
+      if (items.length < PAGE_SIZE) break;
       page++;
     }
 
@@ -263,17 +359,14 @@ export class LinnworksApiClient {
    * Fetch stock levels for all locations.
    */
   async getStockLevels(stockItemIds: string[]): Promise<LinnworksStockLevel[]> {
-    const BATCH = 50;
     const all: LinnworksStockLevel[] = [];
 
-    for (let i = 0; i < stockItemIds.length; i += BATCH) {
-      const batch = stockItemIds.slice(i, i + BATCH);
-      const result = await this.post<LinnworksStockLevel[]>(
+    for (const stockItemId of stockItemIds) {
+      const result = await this.post<unknown>(
         '/api/Stock/GetStockLevel',
-        { stockItemId: batch[0] }, // Linnworks stock level is per-item; iterate
+        { stockItemId },
       );
-      // For multi-item, use the batch endpoint if available:
-      if (Array.isArray(result)) all.push(...result);
+      all.push(...this.normalizeArray<LinnworksStockLevel>(result, ['StockLevels']));
     }
 
     return all;
@@ -288,11 +381,11 @@ export class LinnworksApiClient {
 
     for (let i = 0; i < stockItemIds.length; i += BATCH) {
       const batchIds = stockItemIds.slice(i, i + BATCH);
-      const result = await this.post<{ StockLevels?: LinnworksStockLevel[] }>(
+      const result = await this.post<unknown>(
         '/api/Stock/GetStockLevelBatch',
         { stockItemIds: batchIds },
       );
-      if (result.StockLevels) all.push(...result.StockLevels);
+      all.push(...this.normalizeArray<LinnworksStockLevel>(result, ['StockLevels']));
     }
 
     return all;
@@ -302,18 +395,171 @@ export class LinnworksApiClient {
    * Fetch channel listings (ASIN, eBay listing IDs, prices) for all inventory items.
    */
   async getAllChannelListings(stockItemIds: string[]): Promise<LinnworksChannelListing[]> {
-    const BATCH = 50;
     const all: LinnworksChannelListing[] = [];
 
-    for (let i = 0; i < stockItemIds.length; i += BATCH) {
-      const batchIds = stockItemIds.slice(i, i + BATCH);
-      const result = await this.post<LinnworksChannelListing[]>(
+    for (const stockItemId of stockItemIds) {
+      const result = await this.get<unknown>(
         '/api/Inventory/GetInventoryItemChannelSKUs',
-        { stockItemIds: batchIds },
+        { inventoryItemId: stockItemId },
       );
-      if (Array.isArray(result)) all.push(...result);
+      all.push(...this.normalizeArray<LinnworksChannelListing>(result));
     }
 
     return all;
+  }
+
+  async searchProcessedOrders(from: Date, to: Date): Promise<LinnworksProcessedOrderSummary[]> {
+    const PAGE_SIZE = 200;
+    let page = 1;
+    const all: LinnworksProcessedOrderSummary[] = [];
+
+    while (true) {
+      const result = await this.post<unknown>(
+        '/api/ProcessedOrders/SearchProcessedOrders',
+        {
+          request: {
+            SearchTerm: '',
+            SearchFilters: [],
+            DateField: 'processed',
+            FromDate: from.toISOString(),
+            ToDate: to.toISOString(),
+            PageNumber: page,
+            ResultsPerPage: PAGE_SIZE,
+            SearchSorting: {
+              SortField: 'dProcessedOn',
+              SortDirection: 'ASC',
+            },
+          },
+        },
+      );
+
+      const paged = this.normalizePagedData<LinnworksProcessedOrderSummary>(result);
+      all.push(...paged.data);
+
+      if (paged.totalPages && page >= paged.totalPages) break;
+      if (paged.data.length < PAGE_SIZE) break;
+      page++;
+    }
+
+    return all.filter((order) => Boolean(order.pkOrderID));
+  }
+
+  async getOrdersByIds(orderIds: string[]): Promise<LinnworksOrderDetails[]> {
+    const BATCH = 50;
+    const all: LinnworksOrderDetails[] = [];
+
+    for (let i = 0; i < orderIds.length; i += BATCH) {
+      const batchIds = orderIds.slice(i, i + BATCH);
+      const result = await this.post<unknown>(
+        '/api/Orders/GetOrdersById',
+        { pkOrderIds: batchIds },
+      );
+      all.push(...this.normalizeArray<LinnworksOrderDetails>(result));
+    }
+
+    return all;
+  }
+
+  async getSalesMetrics(periodDays: number[] = [7, 30, 90, 365]): Promise<LinnworksSalesMetric[]> {
+    const periodEnd = new Date();
+    const maxDays = Math.max(...periodDays);
+    const earliestPeriodStart = new Date(periodEnd.getTime() - maxDays * 24 * 60 * 60 * 1000);
+    const periods = periodDays.map((days) => ({
+      days,
+      periodStart: new Date(periodEnd.getTime() - days * 24 * 60 * 60 * 1000),
+      periodEnd,
+    }));
+
+    const orders: LinnworksProcessedOrderSummary[] = [];
+    const chunkDays = 90;
+    let chunkStart = earliestPeriodStart;
+    while (chunkStart < periodEnd) {
+      const chunkEnd = new Date(
+        Math.min(
+          periodEnd.getTime(),
+          chunkStart.getTime() + chunkDays * 24 * 60 * 60 * 1000,
+        ),
+      );
+      orders.push(...await this.searchProcessedOrders(chunkStart, chunkEnd));
+      chunkStart = new Date(chunkEnd.getTime() + 1);
+    }
+
+    const orderIds = [...new Set(orders.map((order) => order.pkOrderID))];
+    if (orderIds.length === 0) return [];
+
+    const orderDetails = await this.getOrdersByIds(orderIds);
+    const buckets = new Map<string, LinnworksSalesMetric>();
+
+    const addItem = (
+      order: LinnworksOrderDetails,
+      item: LinnworksOrderItem,
+      channelSource: string,
+      subSource?: string,
+      country?: string | null,
+      currency?: string,
+    ) => {
+      const sku = item.SKU || item.ItemNumber;
+      if (!sku) return;
+
+      const quantity = Math.max(0, Math.round(Number(item.Quantity ?? 0)));
+      if (quantity === 0) return;
+
+      const orderDate = new Date(
+        order.ProcessedDateTime ??
+          order.GeneralInfo?.ReceivedDate ??
+          periodEnd,
+      );
+
+      const revenue =
+        typeof item.Cost === 'number'
+          ? item.Cost
+          : Number(item.PricePerUnit ?? 0) * quantity;
+
+      for (const period of periods) {
+        if (orderDate < period.periodStart || orderDate > period.periodEnd) continue;
+
+        const key = [
+          sku,
+          channelSource,
+          subSource ?? '',
+          country ?? '',
+          currency ?? '',
+          period.days,
+        ].join('|');
+
+        const existing = buckets.get(key) ?? {
+          sku,
+          channelSource,
+          subSource,
+          country,
+          periodStart: period.periodStart,
+          periodEnd: period.periodEnd,
+          unitsSold: 0,
+          revenue: 0,
+          currency,
+        };
+
+        existing.unitsSold += quantity;
+        existing.revenue += Number.isFinite(revenue) ? revenue : 0;
+        buckets.set(key, existing);
+      }
+
+      for (const child of item.CompositeSubItems ?? []) {
+        addItem(order, child, channelSource, subSource, country, currency);
+      }
+    };
+
+    for (const order of orderDetails) {
+      const channelSource = order.GeneralInfo?.Source ?? 'OTHER';
+      const subSource = order.GeneralInfo?.SubSource ?? order.GeneralInfo?.SiteCode;
+      const country = order.CustomerInfo?.Address?.Country ?? null;
+      const currency = order.TotalsInfo?.Currency ?? 'GBP';
+
+      for (const item of order.Items ?? []) {
+        addItem(order, item, item.ItemSource ?? channelSource, subSource, country, currency);
+      }
+    }
+
+    return [...buckets.values()];
   }
 }
