@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Patch,
   Post,
   Body,
   Req,
@@ -10,6 +11,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -39,6 +41,7 @@ import {
 } from '../../dto/google-oauth.dto';
 import type { Request, Response } from 'express';
 import { CustomLoggerService } from '../../../../common/services/custom-logger.service';
+import { PrismaService } from '../../../../common/services/prisma.service';
 import { THROTTLER_CONFIG } from '../../../../common/config/throttler.config';
 import { AuthGuard } from '../../../../common/guards/auth.guard';
 import {
@@ -61,6 +64,7 @@ export class AuthController {
     private readonly passwordService: PasswordService,
     private readonly accessTokenAuthenticator: AccessTokenAuthenticator,
     private readonly customLogger: CustomLoggerService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // Strict rate limit for registration: 5 requests per 15 minutes
@@ -361,6 +365,93 @@ export class AuthController {
       success: true,
       message: 'Login successful',
       data: result,
+    };
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'Current user profile retrieved' })
+  async me(@Req() req: AuthenticatedRequest) {
+    const user = await this.prisma.authUser.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        role: true,
+        verified: true,
+        status: true,
+        provider: true,
+        createdAt: true,
+        updatedAt: true,
+        userProfile: {
+          select: {
+            firstName: true,
+            lastName: true,
+            bio: true,
+            avatarUrl: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      message: 'Current user profile retrieved',
+      data: user,
+    };
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch('profile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  async updateProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body()
+    payload: {
+      firstName?: string | null;
+      lastName?: string | null;
+      bio?: string | null;
+      avatarUrl?: string | null;
+    },
+  ) {
+    const profile = await this.prisma.userProfile.upsert({
+      where: { authId: req.user.userId },
+      create: {
+        authId: req.user.userId,
+        firstName: payload.firstName ?? null,
+        lastName: payload.lastName ?? null,
+        bio: payload.bio ?? null,
+        avatarUrl: payload.avatarUrl ?? null,
+      },
+      update: {
+        firstName: payload.firstName ?? null,
+        lastName: payload.lastName ?? null,
+        bio: payload.bio ?? null,
+        avatarUrl: payload.avatarUrl ?? null,
+      },
+      select: {
+        firstName: true,
+        lastName: true,
+        bio: true,
+        avatarUrl: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      message: 'Profile updated successfully',
+      data: profile,
     };
   }
 

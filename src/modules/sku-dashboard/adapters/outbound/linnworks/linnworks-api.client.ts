@@ -7,6 +7,8 @@ import { LinnworksConfig } from './linnworks.config';
 interface LinnworksSessionTokenResponse {
   Token: string;
   Server: string;
+  /** Token lifetime in seconds. Linnworks commonly returns 1800. */
+  TTL?: number;
   /** Expiry as ISO date string. Linnworks tokens expire after ~30 minutes. */
   Expires?: string;
 }
@@ -85,9 +87,11 @@ export class LinnworksApiClient {
   private static readonly DEFAULT_TTL_MS = 25 * 60 * 1000;
 
   constructor(private readonly config: LinnworksConfig) {
-    // Seed the initial auth token from .env so the first call doesn't need a round-trip
-    this.cachedToken = config.initialAuthToken;
-    this.tokenExpiresAt = new Date(Date.now() + LinnworksApiClient.DEFAULT_TTL_MS);
+    if (config.initialAuthToken) {
+      // Optional warm start for local debugging; normal operation authorizes on demand.
+      this.cachedToken = config.initialAuthToken;
+      this.tokenExpiresAt = new Date(Date.now() + LinnworksApiClient.DEFAULT_TTL_MS);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -104,7 +108,7 @@ export class LinnworksApiClient {
 
     this.logger.log('Linnworks session token expired or near expiry — renewing…');
 
-    const url = 'https://api.linnworks.net/api/Auth/AuthoriseByApplication';
+    const url = 'https://api.linnworks.net/api/Auth/AuthorizeByApplication';
     const body = new URLSearchParams({
       ApplicationId: this.config.applicationId,
       ApplicationSecret: this.config.applicationSecret,
@@ -129,6 +133,8 @@ export class LinnworksApiClient {
 
     if (data.Expires) {
       this.tokenExpiresAt = new Date(data.Expires);
+    } else if (data.TTL && data.TTL > 0) {
+      this.tokenExpiresAt = new Date(Date.now() + data.TTL * 1000);
     } else {
       this.tokenExpiresAt = new Date(Date.now() + LinnworksApiClient.DEFAULT_TTL_MS);
     }
