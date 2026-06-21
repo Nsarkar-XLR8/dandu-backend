@@ -34,6 +34,9 @@ const HEADER_ALIASES: Record<string, string[]> = {
   channel:  ['Channel', 'Source', 'MarketplaceSource', 'ChannelType'],
   asin:     ['ASIN', 'ChannelRefId', 'Channel Ref', 'ChannelReferenceId'],
   listingId:['ListingId', 'Listing ID', 'ChannelListingId'],
+  material: ['Material', 'MaterialType', 'ProductMaterial', 'material'],
+  thickness:['Thickness', 'ProductThickness', 'ThicknessGauge', 'thickness'],
+  packQty:  ['PackQty', 'Pack Qty', 'PackQuantity', 'QuantityPerPack', 'packQty'],
 };
 
 type ChannelType = 'AMAZON' | 'EBAY' | 'WALMART' | 'SHOPIFY' | 'WEBSITE' | 'OTHER';
@@ -125,6 +128,9 @@ export class ImportReportService implements IImportReportUseCase {
           currency: resolve(row.values, 'currency') || 'GBP',
           weight:   parseNum(resolve(row.values, 'weight')),
           imageUrl: resolve(row.values, 'imageUrl') || null,
+          material: resolve(row.values, 'material') || null,
+          thickness: resolve(row.values, 'thickness') || null,
+          packQty:  parseNum(resolve(row.values, 'packQty')),
         };
         await this.skuRepository.upsertProduct(productInput);
 

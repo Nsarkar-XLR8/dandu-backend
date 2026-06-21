@@ -15,6 +15,7 @@ import { GetDashboardMetricsService } from './application/get-dashboard-metrics.
 import { GetInventoryAlertsService } from './application/get-inventory-alerts.service';
 import { UpdateProductService } from './application/update-product.service';
 import { LinnworksSyncService } from './application/linnworks-sync.service';
+import { SyncSchedulerService } from './application/sync-scheduler.service';
 
 // Ports
 import {
@@ -88,6 +89,7 @@ import { LinnworksApiClient } from './adapters/outbound/linnworks/linnworks-api.
         new LinnworksSyncService(client, repo),
       inject: [LinnworksApiClient, SKU_REPOSITORY_TOKEN],
     },
+    SyncSchedulerService,
   ],
 })
 export class SkuDashboardModule {}

@@ -24,6 +24,9 @@ export interface ProductDomainModel {
   };
   imageUrl: string | null;
   productUrl: string | null;
+  material: string | null;
+  thickness: string | null;
+  packQty: number | null;
   lastSyncedAt: Date | null;
 }
 

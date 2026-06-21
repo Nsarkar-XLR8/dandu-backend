@@ -41,6 +41,9 @@ export interface UpsertProductInput {
   height?: number | null;
   imageUrl?: string | null;
   productUrl?: string | null;
+  material?: string | null;
+  thickness?: string | null;
+  packQty?: number | null;
 }
 
 export interface UpsertStockInput {
@@ -141,6 +144,7 @@ export interface ISkuRepository {
 
   // Sync log
   createSyncLog(input: CreateSyncLogInput): Promise<void>;
+  findLastSuccessfulSync(provider: string): Promise<Date | null>;
 
   // Dashboard aggregations
   getDashboardMetrics(periodDays: number): Promise<DashboardMetricsOutput>;

@@ -150,6 +150,9 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
         height: input.height != null ? new Prisma.Decimal(input.height) : undefined,
         imageUrl: input.imageUrl ?? undefined,
         productUrl: input.productUrl ?? undefined,
+        material: input.material ?? undefined,
+        thickness: input.thickness ?? undefined,
+        packQty: input.packQty ?? undefined,
         lastSyncedAt: new Date(),
       },
       create: {
@@ -164,6 +167,9 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
         height: input.height != null ? new Prisma.Decimal(input.height) : undefined,
         imageUrl: input.imageUrl,
         productUrl: input.productUrl,
+        material: input.material,
+        thickness: input.thickness,
+        packQty: input.packQty,
         lastSyncedAt: new Date(),
       },
       select: { id: true },
@@ -253,6 +259,9 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
     if (fields.height !== undefined) data.height = fields.height != null ? new Prisma.Decimal(fields.height) : null;
     if (fields.imageUrl !== undefined) data.imageUrl = fields.imageUrl;
     if (fields.productUrl !== undefined) data.productUrl = fields.productUrl;
+    if (fields.material !== undefined) data.material = fields.material;
+    if (fields.thickness !== undefined) data.thickness = fields.thickness;
+    if (fields.packQty !== undefined) data.packQty = fields.packQty;
 
     await this.prisma.product.update({ where: { sku }, data });
   }
@@ -319,6 +328,18 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
           : Prisma.JsonNull,
       },
     });
+  }
+
+  async findLastSuccessfulSync(provider: string): Promise<Date | null> {
+    const log = await this.prisma.skuSyncLog.findFirst({
+      where: {
+        provider,
+        status: { in: ['SUCCESS', 'PARTIAL_SUCCESS'] },
+      },
+      orderBy: { startedAt: 'desc' },
+      select: { startedAt: true },
+    });
+    return log?.startedAt ?? null;
   }
 
   // ---------------------------------------------------------------------------

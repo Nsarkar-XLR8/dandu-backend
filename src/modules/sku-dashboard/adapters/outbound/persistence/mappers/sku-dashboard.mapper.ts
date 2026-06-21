@@ -32,6 +32,9 @@ export class SkuDashboardMapper {
         },
         imageUrl: product.imageUrl,
         productUrl: product.productUrl,
+        material: product.material,
+        thickness: product.thickness,
+        packQty: product.packQty,
         lastSyncedAt: product.lastSyncedAt,
       },
       stock: product.stock.map((stock) => ({
