@@ -36,19 +36,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let message = 'Internal Server Error';
     let error = 'Error';
 
-    // Log the exception
-    this.logger.error('Unhandled exception caught', {
-      context: 'AllExceptionsFilter',
-      statusCode,
-      path: request.url,
-      method: request.method,
-      exception:
-        exception instanceof Error ? exception.message : String(exception),
-      stack: exception instanceof Error ? exception.stack : undefined,
-    });
-    // let errorCode: string | undefined = undefined;
-    // let errorFields: string[] | undefined = undefined;
-
     // Check if exception has a status property
     if (
       typeof exception === 'object' &&
@@ -84,6 +71,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // statusCode = exception.;
       message = exception.message;
       error = exception.name;
+    }
+
+    const logPayload = {
+      context: 'AllExceptionsFilter',
+      statusCode,
+      path: request.url,
+      method: request.method,
+      exception:
+        exception instanceof Error ? exception.message : String(exception),
+      stack:
+        statusCode >= HttpStatus.INTERNAL_SERVER_ERROR && exception instanceof Error
+          ? exception.stack
+          : undefined,
+    };
+
+    if (statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error('Unhandled server exception caught', logPayload);
+    } else if (statusCode === HttpStatus.NOT_FOUND) {
+      this.logger.info('Request route not found', logPayload);
+    } else {
+      this.logger.warn('Handled request exception', logPayload);
     }
 
     response.status(statusCode).json({
