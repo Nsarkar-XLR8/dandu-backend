@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { RedisModule } from './common/modules/redis.module';
 import { PrismaModule } from './common/modules/prisma.module';
 import { UnitOfWorkModule } from './common/modules/unit-of-work.module';
+import { QueueModule } from './common/modules/queue.module';
 import { AppConfigModule } from './common/modules/app-config.module';
 import { RateLimitModule } from './common/modules/rate-limit.module';
 import { MetricsModule } from './metrics/metrics.module';
@@ -34,6 +35,8 @@ import { RequestIdMiddleware } from './common/middlewares/request-id.middleware'
     PrismaModule,
     // Unit of Work module (global - single transactional adapter binding)
     UnitOfWorkModule,
+    // BullMQ root configuration plus shared queues
+    QueueModule,
     // Rate limiting module (global - throttles requests using Redis)
     RateLimitModule,
     // Metrics module (global - Prometheus metrics)

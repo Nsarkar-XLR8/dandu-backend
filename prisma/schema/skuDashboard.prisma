@@ -5,7 +5,7 @@
 model Product {
     id           String        @id @default(uuid()) @db.VarChar(36)
     sku          String        @unique
-    title        String
+    title        String        @db.Text
     brand        String?
     status       ProductStatus @default(ACTIVE)
     cost         Decimal?      @db.Decimal(10, 2)
@@ -14,8 +14,8 @@ model Product {
     length       Decimal?      @db.Decimal(10, 3)
     width        Decimal?      @db.Decimal(10, 3)
     height       Decimal?      @db.Decimal(10, 3)
-    imageUrl     String?
-    productUrl   String?
+    imageUrl     String?       @db.Text
+    productUrl   String?       @db.Text
     lastSyncedAt DateTime?
     createdAt    DateTime      @default(now())
     updatedAt    DateTime      @updatedAt

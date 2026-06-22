@@ -849,6 +849,13 @@ For detailed information, see [docs/SWAGGER.md](docs/SWAGGER.md)
 | `GRAFANA_ADMIN_PASSWORD` | ❌ | `admin` | Grafana admin password |
 | `LOKI_ENABLED` | ❌ | `true` | Enable Loki log aggregation |
 | `LOKI_URL` | ❌ | `http://localhost:3100` | Loki server URL |
+| **Linnworks** |
+| `LINNWORKS_APPLICATION_ID` | ✅ | - | Linnworks application ID |
+| `LINNWORKS_APPLICATION_SECRET` | ✅ | - | Linnworks application secret |
+| `LINNWORKS_TOKEN` | ❌ | - | Linnworks auth token; `LINNWORKS_AUTH_TOKEN` and `LINNWORKS_INSTALLATION_ID` are accepted as aliases |
+| `LINNWORKS_AUTH_URL` | ❌ | `https://api.linnworks.net/api/Auth/AuthorizeByApplication` | Linnworks authorization endpoint |
+| `LINNWORKS_DEFAULT_SERVER` | ❌ | `https://us-ext.linnworks.net` | Default Linnworks API server |
+| `LINNWORKS_DAILY_SYNC_CRON` | ❌ | `0 3 * * *` | Cron schedule for the daily Linnworks sync |
 
 ### Create `.env` File
 

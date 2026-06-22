@@ -70,3 +70,21 @@ export class ChangePasswordDto {
   @MinLength(8)
   newPassword: string;
 }
+
+export class UpdateProfileDto {
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
+}

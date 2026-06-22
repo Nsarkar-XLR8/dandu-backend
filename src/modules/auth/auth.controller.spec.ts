@@ -11,6 +11,7 @@ import { CreateAuthDto } from './dto/create-auth.dto';
 import type { Request } from 'express';
 import { CustomLoggerService } from '../../common/services/custom-logger.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { PrismaService } from '../../common/services/prisma.service';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -65,6 +66,15 @@ describe('AuthController', () => {
     debug: jest.fn(),
   };
 
+  const mockPrismaService = {
+    authUser: {
+      findUnique: jest.fn(),
+    },
+    userProfile: {
+      upsert: jest.fn(),
+    },
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -100,6 +110,10 @@ describe('AuthController', () => {
         {
           provide: CustomLoggerService,
           useValue: mockCustomLoggerService,
+        },
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
         },
       ],
     })
