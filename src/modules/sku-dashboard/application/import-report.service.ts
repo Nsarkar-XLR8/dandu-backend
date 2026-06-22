@@ -59,15 +59,16 @@ function mapChannel(raw: string): ChannelType {
   if (u.includes('EBAY'))   return 'EBAY';
   if (u.includes('WALMART')) return 'WALMART';
   if (u.includes('SHOPIFY')) return 'SHOPIFY';
-  if (u.includes('WEB') || u.includes('DANDU') || u.includes('WEBSITE')) return 'WEBSITE';
+  if (u.includes('WEB') || u.includes('DANDU') || u.includes('WEBSITE') || u.includes('BIGCOMMERCE') || u.includes('DISTINCT')) return 'WEBSITE';
   return 'OTHER';
 }
 
 function mapLocationType(locationName: string): 'FBA' | 'FBM' | 'WAREHOUSE' | 'THIRD_PARTY' {
   const u = locationName.toUpperCase();
   if (u.includes('FBA') || u.includes('AMAZON')) return 'FBA';
-  if (u.includes('FBM'))  return 'FBM';
+  if (u.includes('FBM') || u.includes('MFN') || u === 'DEFAULT' || u.includes('FLORIDA')) return 'FBM';
   if (u.includes('3PL') || u.includes('THIRD')) return 'THIRD_PARTY';
+  if (u.includes('WHOLESALE')) return 'WAREHOUSE';
   return 'WAREHOUSE';
 }
 
@@ -169,7 +170,7 @@ export class ImportReportService implements IImportReportUseCase {
 
         // ---- Stock ----------------------------------------------------------
         const locationName = resolve(row.values, 'location') || 'DEFAULT';
-        const country      = resolve(row.values, 'country')  || 'GB';
+        const country      = resolve(row.values, 'country')  || 'US';
         const available    = parseNum(resolve(row.values, 'available'))  ?? 0;
         const inOrders     = parseNum(resolve(row.values, 'inOrders'))   ?? 0;
         const inbound      = parseNum(resolve(row.values, 'inbound'))    ?? 0;

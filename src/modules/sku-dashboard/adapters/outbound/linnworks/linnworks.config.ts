@@ -5,14 +5,18 @@ import { ConfigService } from '@nestjs/config';
 export class LinnworksConfig {
   readonly applicationId: string;
   readonly applicationSecret: string;
-  readonly installationId: string;
-  /** Optional pre-fetched session token. The client normally authorizes with app credentials on demand. */
-  readonly initialAuthToken?: string;
+  readonly installationToken: string;
+  readonly initialSessionToken?: string;
+  readonly initialServer: string;
 
   constructor(config: ConfigService) {
     this.applicationId = config.getOrThrow<string>('LINNWORKS_APPLICATION_ID');
     this.applicationSecret = config.getOrThrow<string>('LINNWORKS_APPLICATION_SECRET');
-    this.installationId = config.getOrThrow<string>('LINNWORKS_INSTALLATION_ID');
-    this.initialAuthToken = config.get<string>('LINNWORKS_AUTH_TOKEN');
+    this.installationToken =
+      config.get<string>('LINNWORKS_INSTALLATION_TOKEN') ??
+      config.get<string>('LINNWORKS_AUTH_TOKEN') ??
+      config.getOrThrow<string>('LINNWORKS_INSTALLATION_ID');
+    this.initialSessionToken = config.get<string>('LINNWORKS_SESSION_TOKEN');
+    this.initialServer = config.get<string>('LINNWORKS_API_SERVER') ?? 'https://api.linnworks.net';
   }
 }

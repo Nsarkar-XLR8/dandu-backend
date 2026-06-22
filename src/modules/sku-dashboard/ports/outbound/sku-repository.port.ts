@@ -80,6 +80,8 @@ export interface UpsertSalesMetricInput {
   currency?: string;
 }
 
+export interface IncrementSalesMetricInput extends UpsertSalesMetricInput {}
+
 // ---------------------------------------------------------------------------
 // Browse / filter types
 // ---------------------------------------------------------------------------
@@ -146,6 +148,8 @@ export interface ISkuRepository {
   upsertStock(input: UpsertStockInput): Promise<void>;
   upsertChannel(input: UpsertChannelInput): Promise<void>;
   upsertSalesMetric(input: UpsertSalesMetricInput): Promise<void>;
+  incrementSalesMetric(input: IncrementSalesMetricInput): Promise<boolean>;
+  clearSalesMetricsForPeriod(periodStart: Date, periodEnd: Date): Promise<number>;
 
   // Update mutable product fields
   updateProduct(sku: string, fields: Partial<UpsertProductInput>): Promise<void>;

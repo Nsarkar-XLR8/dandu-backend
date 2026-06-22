@@ -26,7 +26,7 @@ function mapChannelSource(source: string, subSource?: string): ChannelType {
   if (s.includes('EBAY'))   return 'EBAY';
   if (s.includes('WALMART')) return 'WALMART';
   if (s.includes('SHOPIFY')) return 'SHOPIFY';
-  if (s.includes('WEB') || s.includes('DANDU')) return 'WEBSITE';
+  if (s.includes('WEB') || s.includes('DANDU') || s.includes('BIGCOMMERCE') || s.includes('DISTINCT')) return 'WEBSITE';
   return 'OTHER';
 }
 
@@ -43,19 +43,20 @@ function extractCountryFromLocation(location: { LocationName: string; CountryNam
 
   const name = location.LocationName.toUpperCase();
   if (name.includes('US') || name.includes('UNITED STATES') || name.includes('AMERICA')) return 'US';
+  if (name.includes('FLORIDA') || name === 'DEFAULT') return 'US';
   if (name.includes('UK') || name.includes('UNITED KINGDOM') || name.includes('BRITAIN')) return 'GB';
   if (name.includes('CA') || name.includes('CANADA')) return 'CA';
   if (name.includes('DE') || name.includes('GERMANY')) return 'DE';
   if (name.includes('AU') || name.includes('AUSTRALIA')) return 'AU';
-  return 'GB'; // sensible default for UK-based sellers
+  return 'US';
 }
 
 function extractCountryFromSubSource(subSource?: string | null): string | null {
   if (!subSource) return null;
   const value = subSource.toUpperCase();
-  if (value === 'US' || value.includes('AMAZON.COM') || value.includes('USA')) return 'US';
+  if (value === 'US' || value.includes('AMAZON.COM') || value.includes('USA') || value.endsWith('_US')) return 'US';
   if (value === 'CA' || value.includes('AMAZON.CA') || value.includes('CANADA')) return 'CA';
-  if (value === 'GB' || value === 'UK' || value.includes('AMAZON.CO.UK')) return 'GB';
+  if (value === 'GB' || value === 'UK' || value.includes('AMAZON.CO.UK') || value.endsWith('_UK')) return 'GB';
   if (/^[A-Z]{2}$/.test(value)) return value;
   return null;
 }
@@ -81,8 +82,36 @@ function mapLocationType(location: { IsFulfillmentCenter: boolean; LocationName:
   const name = location.LocationName.toUpperCase();
   if (location.IsFulfillmentCenter || name.includes('FBA') || name.includes('AMAZON')) return 'FBA';
   if (name.includes('3PL') || name.includes('THIRD')) return 'THIRD_PARTY';
-  if (name.includes('FBM')) return 'FBM';
+  if (name.includes('WHOLESALE')) return 'WAREHOUSE';
+  if (name.includes('FBM') || name.includes('MFN') || name === 'DEFAULT' || name.includes('FLORIDA')) return 'FBM';
   return 'WAREHOUSE';
+}
+
+function findChannelPrice(
+  prices: LinnworksStockItem['ItemChannelPrices'] | undefined,
+  source: string,
+  subSource?: string,
+): number | null {
+  if (!prices?.length) return null;
+
+  const normalizedSource = source.toUpperCase();
+  const normalizedSubSource = subSource?.toUpperCase();
+  const candidates = prices.filter((price) => price.Source.toUpperCase() === normalizedSource);
+  const exact = candidates.find(
+    (price) => price.SubSource?.toUpperCase() === normalizedSubSource,
+  );
+  if (exact?.Price != null) return exact.Price;
+
+  const fuzzy = candidates.find((price) => {
+    const priceSubSource = price.SubSource?.toUpperCase() ?? '';
+    return (
+      Boolean(normalizedSubSource) &&
+      (priceSubSource.includes(normalizedSubSource!) || normalizedSubSource!.includes(priceSubSource))
+    );
+  });
+  if (fuzzy?.Price != null) return fuzzy.Price;
+
+  return candidates.find((price) => price.Price != null)?.Price ?? null;
 }
 
 function readExtendedProperty(item: LinnworksStockItem, names: string[]): string | null {
@@ -210,10 +239,7 @@ export class LinnworksSyncService {
         if (!sku) continue;
 
         const stockItem = stockItems.find((item) => item.StockItemId === listing.StockItemId);
-        const channelPrice = stockItem?.ItemChannelPrices?.find((price) =>
-          price.Source === listing.Source &&
-          (!listing.SubSource || price.SubSource === listing.SubSource),
-        );
+        const channelPrice = findChannelPrice(stockItem?.ItemChannelPrices, listing.Source, listing.SubSource);
 
         const channelInput: UpsertChannelInput = {
           sku,
@@ -221,7 +247,7 @@ export class LinnworksSyncService {
           country:   extractCountryFromSubSource(listing.SubSource),
           asin:      listing.ChannelReferenceId ?? null,
           listingId: listing.ListingId ?? listing.ChannelSKURowId ?? null,
-          price:     listing.Price ?? channelPrice?.Price ?? stockItem?.RetailPrice ?? null,
+          price:     listing.Price ?? channelPrice ?? stockItem?.RetailPrice ?? null,
           currency:  listing.CurrencyCode ?? 'GBP',
           isActive:  true,
         };

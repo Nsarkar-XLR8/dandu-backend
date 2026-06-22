@@ -51,9 +51,9 @@ export class SkuDashboardMapper {
       })),
       channels: product.channels.map((channel) => ({
         channel: channel.channel,
-        country: channel.country,
-        asin: channel.asin,
-        listingId: channel.listingId,
+        country: channel.country || null,
+        asin: channel.asin || null,
+        listingId: channel.listingId || null,
         price: decimalToNumber(channel.price),
         currency: channel.currency,
         isActive: channel.isActive,
