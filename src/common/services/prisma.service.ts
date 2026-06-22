@@ -27,12 +27,11 @@ export class PrismaService
       throw new Error('DATABASE_URL is required to initialize Prisma.');
     }
 
+    const enableQueryLogs = process.env.PRISMA_QUERY_LOGS === 'true';
+
     super({
       datasourceUrl: databaseUrl,
-      log:
-        process.env.NODE_ENV === 'development'
-          ? ['query', 'warn', 'error']
-          : ['warn', 'error'],
+      log: enableQueryLogs ? ['query', 'warn', 'error'] : ['warn', 'error'],
     });
   }
 

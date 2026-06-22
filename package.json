@@ -12,6 +12,7 @@
     "dev": "nest start --watch --preserveWatchOutput --poll",
     "start:dev": "nest start --watch --preserveWatchOutput --poll",
     "start:debug": "nest start --debug --watch",
+    "prestart:prod": "node scripts/ensure-production-build.js",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
@@ -19,7 +20,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && node scripts/build-if-source-present.js",
     "prisma:push": "prisma db push",
     "prisma:generate": "prisma generate",
     "docker:dev": "docker compose -f docker-compose.yaml up -d"

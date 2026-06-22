@@ -2,13 +2,8 @@ import { WinstonModuleOptions } from 'nest-winston';
 import * as winston from 'winston';
 import LokiTransport from 'winston-loki';
 
-// Check if Loki is available
-const lokiEnabled = process.env.LOKI_ENABLED !== 'false';
-const lokiHost =
-  process.env.LOKI_URL ||
-  (process.env.NODE_ENV === 'production'
-    ? 'http://loki:3100'
-    : 'http://localhost:3100');
+const lokiHost = process.env.LOKI_URL;
+const lokiEnabled = process.env.LOKI_ENABLED === 'true' && Boolean(lokiHost);
 
 const transports: winston.transport[] = [
   // Console transport for development
@@ -27,7 +22,7 @@ const transports: winston.transport[] = [
 ];
 
 // Only add Loki transport if enabled and not explicitly disabled
-if (lokiEnabled) {
+if (lokiEnabled && lokiHost) {
   try {
     transports.push(
       new LokiTransport({

@@ -17,6 +17,7 @@ import { PrismaModule } from './prisma.module';
         password: process.env.REDIS_PASSWORD,
         db: parseInt(process.env.REDIS_DB || '0', 10),
       },
+      skipVersionCheck: true,
       prefix: `${config.redis_cache_key_prefix}:bull`,
     }),
     BullModule.registerQueue({
