@@ -7,6 +7,7 @@ import {
   UpsertStockInput,
   UpsertChannelInput,
   UpsertSalesMetricInput,
+  IncrementSalesMetricInput,
   CreateImportBatchInput,
   UpdateImportBatchInput,
   ImportRowErrorInput,
@@ -329,6 +330,101 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
         },
       }),
     ]);
+  }
+
+  async incrementSalesMetric(input: IncrementSalesMetricInput): Promise<boolean> {
+    const product = await this.prisma.product.findUnique({
+      where: { sku: input.sku },
+      select: { id: true },
+    });
+    if (!product) return false;
+
+    const { periodStart, periodEnd } = normalizeMetricPeriod(input.periodStart, input.periodEnd);
+    const channel = input.channel as SalesChannelType;
+    const country = input.country ?? null;
+    const revenue = new Prisma.Decimal(input.revenue ?? 0);
+
+    const productChannel = await this.prisma.productChannel.findFirst({
+      where: {
+        productId: product.id,
+        channel,
+        ...(country ? { country } : {}),
+      },
+      select: { id: true },
+    });
+
+    const existing = await this.prisma.productSalesMetric.findFirst({
+      where: {
+        productId: product.id,
+        channel,
+        country,
+        periodStart,
+        periodEnd,
+      },
+      select: { id: true, unitsSold: true, revenue: true },
+    });
+
+    if (existing) {
+      const unitsSold = existing.unitsSold + input.unitsSold;
+      const updatedRevenue = existing.revenue.plus(revenue);
+      await this.prisma.productSalesMetric.update({
+        where: { id: existing.id },
+        data: {
+          productChannelId: productChannel?.id,
+          unitsSold,
+          revenue: updatedRevenue,
+          velocity: new Prisma.Decimal(
+            unitsSold /
+              Math.max(
+                1,
+                Math.round(
+                  (periodEnd.getTime() - periodStart.getTime()) /
+                    (24 * 60 * 60 * 1000),
+                ),
+              ),
+          ),
+          currency: input.currency ?? 'GBP',
+        },
+      });
+      return true;
+    }
+
+    await this.prisma.productSalesMetric.create({
+      data: {
+        productId: product.id,
+        productChannelId: productChannel?.id,
+        channel,
+        country,
+        periodStart,
+        periodEnd,
+        unitsSold: input.unitsSold,
+        revenue,
+        velocity: new Prisma.Decimal(
+          input.unitsSold /
+            Math.max(
+              1,
+              Math.round(
+                (periodEnd.getTime() - periodStart.getTime()) /
+                  (24 * 60 * 60 * 1000),
+              ),
+            ),
+        ),
+        currency: input.currency ?? 'GBP',
+      },
+    });
+
+    return true;
+  }
+
+  async clearSalesMetricsForPeriod(periodStart: Date, periodEnd: Date): Promise<number> {
+    const normalized = normalizeMetricPeriod(periodStart, periodEnd);
+    const result = await this.prisma.productSalesMetric.deleteMany({
+      where: {
+        periodStart: normalized.periodStart,
+        periodEnd: normalized.periodEnd,
+      },
+    });
+    return result.count;
   }
 
   async updateProduct(sku: string, fields: Partial<UpsertProductInput>): Promise<void> {

@@ -19,11 +19,13 @@ import {
 } from '@nestjs/swagger';
 import { AuthGuard } from '../../../../../common/guards/auth.guard';
 import { SkuSearchQueryDto } from '../../../dto/sku-search-query.dto';
+import { HistoricalSalesIngestionDto } from '../../../dto/historical-sales-ingestion.dto';
 import { GetSkuMetricsService } from '../../../application/get-sku-metrics.service';
 import { BrowseSkusService } from '../../../application/browse-skus.service';
 import { GetDashboardMetricsService } from '../../../application/get-dashboard-metrics.service';
 import { GetInventoryAlertsService } from '../../../application/get-inventory-alerts.service';
 import { LinnworksSyncService } from '../../../application/linnworks-sync.service';
+import { LinnworksHistoricalSalesIngestionService } from '../../../application/linnworks-historical-sales-ingestion.service';
 import { UpdateProductService } from '../../../application/update-product.service';
 
 @ApiTags('SKU Dashboard')
@@ -37,6 +39,7 @@ export class SkuDashboardController {
     private readonly getDashboardMetricsService: GetDashboardMetricsService,
     private readonly getInventoryAlertsService: GetInventoryAlertsService,
     private readonly linnworksSyncService: LinnworksSyncService,
+    private readonly linnworksHistoricalSalesIngestionService: LinnworksHistoricalSalesIngestionService,
     private readonly updateProductService: UpdateProductService,
   ) {}
 
@@ -113,6 +116,29 @@ export class SkuDashboardController {
     const result = await this.linnworksSyncService.sync();
     return {
       message: result.status === 'COMPLETED' ? 'Linnworks sync complete' : 'Linnworks sync failed',
+      data: result,
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /sku-dashboard/sync/linnworks/historical-sales
+  // -------------------------------------------------------------------------
+  @Post('sync/linnworks/historical-sales')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Import historical Linnworks processed order items using 90-day chunks' })
+  @ApiResponse({ status: 200, description: 'Historical sales ingestion result' })
+  async syncHistoricalSales(@Body() body: HistoricalSalesIngestionDto) {
+    const result = await this.linnworksHistoricalSalesIngestionService.ingest({
+      fromDate: body.fromDate ? new Date(body.fromDate) : undefined,
+      toDate: body.toDate ? new Date(body.toDate) : undefined,
+      historyDays: body.historyDays,
+      chunkDays: body.chunkDays,
+    });
+
+    return {
+      message: result.status === 'COMPLETED'
+        ? 'Historical Linnworks sales import complete'
+        : 'Historical Linnworks sales import failed',
       data: result,
     };
   }
