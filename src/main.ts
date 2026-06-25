@@ -60,7 +60,7 @@ async function bootstrap() {
   });
 
   // Security middleware - helmet helps secure Express apps by setting HTTP response headers
-  // Adjust CSP for Swagger UI if enabled
+  // CSP: Content Security Policy to prevent XSS and injection attacks
   const helmetConfig =
     !isProduction || enableSwagger
       ? {
@@ -69,7 +69,8 @@ async function bootstrap() {
               defaultSrc: ["'self'"],
               styleSrc: ["'self'", "'unsafe-inline'"],
               imgSrc: ["'self'", 'data:', 'https:'],
-              scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Required for Swagger UI
+              scriptSrc: ["'self'", "'unsafe-inline'"], // Swagger UI requires unsafe-inline
+              connectSrc: ["'self'", 'https:'], // Allow external API calls for development
             },
           },
           frameguard: { action: 'deny' as const },
@@ -89,9 +90,10 @@ async function bootstrap() {
           contentSecurityPolicy: {
             directives: {
               defaultSrc: ["'self'"],
-              styleSrc: ["'self'", "'unsafe-inline'"],
-              imgSrc: ["'self'", 'data:', 'https:'],
+              styleSrc: ["'self'"],
+              imgSrc: ["'self'", 'https:'],
               scriptSrc: ["'self'"],
+              connectSrc: ["'self'"],
             },
           },
           frameguard: { action: 'deny' as const },
