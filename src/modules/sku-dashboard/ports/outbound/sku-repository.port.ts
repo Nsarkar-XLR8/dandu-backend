@@ -88,6 +88,11 @@ export interface ReplaceSalesMetricsForPeriodResult {
   skipped: number;
 }
 
+export interface DeleteProductsNotInSkuSetResult {
+  deleted: number;
+  remaining: number;
+}
+
 // ---------------------------------------------------------------------------
 // Browse / filter types
 // ---------------------------------------------------------------------------
@@ -164,6 +169,7 @@ export interface ISkuRepository {
 
   // Update mutable product fields
   updateProduct(sku: string, fields: Partial<UpsertProductInput>): Promise<void>;
+  deleteProductsNotInSkus(skus: string[]): Promise<DeleteProductsNotInSkuSetResult>;
 
   // Import batch tracking
   createImportBatch(input: CreateImportBatchInput): Promise<{ id: string }>;

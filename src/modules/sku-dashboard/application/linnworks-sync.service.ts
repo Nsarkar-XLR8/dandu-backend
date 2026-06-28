@@ -20,7 +20,7 @@ export interface SyncResult {
 
 type ChannelType = 'AMAZON' | 'EBAY' | 'WALMART' | 'SHOPIFY' | 'WEBSITE' | 'OTHER';
 
-function mapChannelSource(source: string, subSource?: string): ChannelType {
+export function mapChannelSource(source: string, subSource?: string): ChannelType {
   const s = (source + ' ' + (subSource ?? '')).toUpperCase().trim();
   if (s.includes('AMAZON')) return 'AMAZON';
   if (s.includes('EBAY'))   return 'EBAY';
@@ -30,7 +30,7 @@ function mapChannelSource(source: string, subSource?: string): ChannelType {
   return 'OTHER';
 }
 
-function extractCountryFromLocation(location: { LocationName: string; CountryName?: string }): string {
+export function extractCountryFromLocation(location: { LocationName: string; CountryName?: string }): string {
   if (location.CountryName) {
     // Map country name → ISO code
     const MAP: Record<string, string> = {
@@ -51,7 +51,7 @@ function extractCountryFromLocation(location: { LocationName: string; CountryNam
   return 'US';
 }
 
-function extractCountryFromSubSource(subSource?: string | null): string | null {
+export function extractCountryFromSubSource(subSource?: string | null): string | null {
   if (!subSource) return null;
   const value = subSource.toUpperCase();
   if (value === 'US' || value.includes('AMAZON.COM') || value.includes('USA') || value.endsWith('_US')) return 'US';
@@ -61,7 +61,7 @@ function extractCountryFromSubSource(subSource?: string | null): string | null {
   return null;
 }
 
-function normalizeCountry(country?: string | null): string | null {
+export function normalizeCountry(country?: string | null): string | null {
   if (!country) return null;
   const value = country.trim();
   const upper = value.toUpperCase();
@@ -78,7 +78,7 @@ function normalizeCountry(country?: string | null): string | null {
   return MAP[upper] ?? (upper.length === 2 ? upper : upper.slice(0, 2));
 }
 
-function mapLocationType(location: { IsFulfillmentCenter: boolean; LocationName: string }): 'FBA' | 'FBM' | 'WAREHOUSE' | 'THIRD_PARTY' {
+export function mapLocationType(location: { IsFulfillmentCenter: boolean; LocationName: string }): 'FBA' | 'FBM' | 'WAREHOUSE' | 'THIRD_PARTY' {
   const name = location.LocationName.toUpperCase();
   if (location.IsFulfillmentCenter || name.includes('FBA') || name.includes('AMAZON')) return 'FBA';
   if (name.includes('3PL') || name.includes('THIRD')) return 'THIRD_PARTY';
@@ -87,7 +87,7 @@ function mapLocationType(location: { IsFulfillmentCenter: boolean; LocationName:
   return 'WAREHOUSE';
 }
 
-function findChannelPrice(
+export function findChannelPrice(
   prices: LinnworksStockItem['ItemChannelPrices'] | undefined,
   source: string,
   subSource?: string,
@@ -114,7 +114,7 @@ function findChannelPrice(
   return candidates.find((price) => price.Price != null)?.Price ?? null;
 }
 
-function readExtendedProperty(item: LinnworksStockItem, names: string[]): string | null {
+export function readExtendedProperty(item: LinnworksStockItem, names: string[]): string | null {
   const normalizedNames = names.map((name) => name.toLowerCase());
   const properties = item.ItemExtendedProperties ?? item.ExtendedProperties ?? [];
   const match = properties.find((property) => {
@@ -124,7 +124,7 @@ function readExtendedProperty(item: LinnworksStockItem, names: string[]): string
   return match?.PropertyValue ?? null;
 }
 
-function parseNullableNumber(value: string | null): number | null {
+export function parseNullableNumber(value: string | null): number | null {
   if (value == null || value.trim() === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -168,8 +168,8 @@ export class LinnworksSyncService {
           title:    item.ItemTitle ?? item.ItemNumber,
           brand:    null,
           cost:     item.PurchasePrice ?? null,
-          currency: 'GBP',
-          weight:   item.Weight != null ? item.Weight / 1000 : null, // Linnworks stores grams
+          currency: 'USD',
+          weight:   item.Weight ?? null,
           length:   item.Depth ?? null,
           width:    item.Width ?? null,
           height:   item.Height ?? null,
@@ -248,7 +248,7 @@ export class LinnworksSyncService {
           asin:      listing.ChannelReferenceId ?? null,
           listingId: listing.ListingId ?? listing.ChannelSKURowId ?? null,
           price:     listing.Price ?? channelPrice ?? stockItem?.RetailPrice ?? null,
-          currency:  listing.CurrencyCode ?? 'GBP',
+          currency:  'USD',
           isActive:  true,
         };
 
@@ -281,7 +281,7 @@ export class LinnworksSyncService {
             periodEnd: metric.periodEnd,
             unitsSold: metric.unitsSold,
             revenue: metric.revenue,
-            currency: metric.currency ?? 'GBP',
+            currency: 'USD',
           });
           updatedSalesMetrics++;
         } catch (err) {

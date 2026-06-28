@@ -156,7 +156,7 @@ export class ImportReportService implements IImportReportUseCase {
           title,
           brand:    resolve(row.values, 'brand') || null,
           cost:     parseNum(resolve(row.values, 'cost')),
-          currency: resolve(row.values, 'currency') || 'GBP',
+          currency: 'USD',
           weight:   parseNum(resolve(row.values, 'weight')),
           length:   parseNum(resolve(row.values, 'length')),
           width:    parseNum(resolve(row.values, 'width')),
@@ -234,7 +234,7 @@ export class ImportReportService implements IImportReportUseCase {
             asin,
             listingId,
             price,
-            currency:  resolve(row.values, 'currency') || 'GBP',
+            currency:  'USD',
             isActive:  true,
           };
           await this.skuRepository.upsertChannel(channelInput);
@@ -243,7 +243,7 @@ export class ImportReportService implements IImportReportUseCase {
         // ---- Sales Metrics --------------------------------------------------
         const metricChannel = mapChannel(channelRaw || (asin ? 'AMAZON' : 'OTHER'));
         const metricCountry = resolve(row.values, 'country') || null;
-        const metricCurrency = resolve(row.values, 'currency') || 'GBP';
+        const metricCurrency = 'USD';
         const periodEnd = new Date();
         const salesBuckets = [
           { field: 'sales7', days: 7 },

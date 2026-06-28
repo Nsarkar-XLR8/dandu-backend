@@ -17,6 +17,7 @@ import {
   CreateSyncLogInput,
   DashboardMetricsOutput,
   InventoryAlertOutput,
+  DeleteProductsNotInSkuSetResult,
 } from '../../../ports/outbound/sku-repository.port';
 import { SkuMetricsDomainModel } from '../../../domain/models/product.domain';
 import { SkuDashboardMapper } from './mappers/sku-dashboard.mapper';
@@ -42,6 +43,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 // Low-stock threshold
 const LOW_STOCK_THRESHOLD = 50;
 const SALES_METRIC_CREATE_BATCH_SIZE = 1000;
+const PRODUCT_DELETE_BATCH_SIZE = 1000;
 
 function locationColour(country: string, locationType: string): string {
   const key = `${country}-${locationType}`;
@@ -186,7 +188,7 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
         title: input.title,
         brand: input.brand,
         cost: input.cost != null ? new Prisma.Decimal(input.cost) : undefined,
-        currency: input.currency ?? 'GBP',
+        currency: input.currency ?? 'USD',
         weight: input.weight != null ? new Prisma.Decimal(input.weight) : undefined,
         length: input.length != null ? new Prisma.Decimal(input.length) : undefined,
         width: input.width != null ? new Prisma.Decimal(input.width) : undefined,
@@ -271,7 +273,7 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
         asin,
         listingId,
         price: input.price != null ? new Prisma.Decimal(input.price) : undefined,
-        currency: input.currency ?? 'GBP',
+        currency: input.currency ?? 'USD',
         isActive: input.isActive ?? true,
       },
     });
@@ -328,7 +330,7 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
                       ),
                     ),
                 ),
-          currency: input.currency ?? 'GBP',
+          currency: input.currency ?? 'USD',
         },
       }),
     ]);
@@ -385,7 +387,7 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
                 ),
               ),
           ),
-          currency: input.currency ?? 'GBP',
+          currency: input.currency ?? 'USD',
         },
       });
       return true;
@@ -411,7 +413,7 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
               ),
             ),
         ),
-        currency: input.currency ?? 'GBP',
+        currency: input.currency ?? 'USD',
       },
     });
 
@@ -481,7 +483,7 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
         unitsSold: input.unitsSold,
         revenue: new Prisma.Decimal(input.revenue ?? 0),
         velocity: new Prisma.Decimal(velocity),
-        currency: input.currency ?? 'GBP',
+        currency: input.currency ?? 'USD',
       });
     }
 
@@ -547,6 +549,27 @@ export class PrismaSkuDashboardRepository implements ISkuRepository {
     if (fields.packQty !== undefined) data.packQty = fields.packQty;
 
     await this.prisma.product.update({ where: { sku }, data });
+  }
+
+  async deleteProductsNotInSkus(skus: string[]): Promise<DeleteProductsNotInSkuSetResult> {
+    const linnworksSkuSet = new Set(skus);
+    const localProducts = await this.prisma.product.findMany({
+      select: { sku: true },
+    });
+    const staleSkus = localProducts
+      .map((product) => product.sku)
+      .filter((sku) => !linnworksSkuSet.has(sku));
+
+    let deleted = 0;
+    for (let i = 0; i < staleSkus.length; i += PRODUCT_DELETE_BATCH_SIZE) {
+      const batch = staleSkus.slice(i, i + PRODUCT_DELETE_BATCH_SIZE);
+      const result = await this.prisma.product.deleteMany({
+        where: { sku: { in: batch } },
+      });
+      deleted += result.count;
+    }
+
+    return { deleted, remaining: skus.length };
   }
 
   // ---------------------------------------------------------------------------

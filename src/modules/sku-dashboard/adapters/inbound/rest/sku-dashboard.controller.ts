@@ -25,6 +25,7 @@ import { BrowseSkusService } from '../../../application/browse-skus.service';
 import { GetDashboardMetricsService } from '../../../application/get-dashboard-metrics.service';
 import { GetInventoryAlertsService } from '../../../application/get-inventory-alerts.service';
 import { LinnworksSyncService } from '../../../application/linnworks-sync.service';
+import { LinnworksInventoryRefreshService } from '../../../application/linnworks-inventory-refresh.service';
 import { LinnworksHistoricalSalesIngestionService } from '../../../application/linnworks-historical-sales-ingestion.service';
 import { UpdateProductService } from '../../../application/update-product.service';
 
@@ -39,6 +40,7 @@ export class SkuDashboardController {
     private readonly getDashboardMetricsService: GetDashboardMetricsService,
     private readonly getInventoryAlertsService: GetInventoryAlertsService,
     private readonly linnworksSyncService: LinnworksSyncService,
+    private readonly linnworksInventoryRefreshService: LinnworksInventoryRefreshService,
     private readonly linnworksHistoricalSalesIngestionService: LinnworksHistoricalSalesIngestionService,
     private readonly updateProductService: UpdateProductService,
   ) {}
@@ -116,6 +118,23 @@ export class SkuDashboardController {
     const result = await this.linnworksSyncService.sync();
     return {
       message: result.status === 'COMPLETED' ? 'Linnworks sync complete' : 'Linnworks sync failed',
+      data: result,
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // POST /sku-dashboard/refresh-inventory
+  // -------------------------------------------------------------------------
+  @Post('refresh-inventory')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh Linnworks inventory and hard-delete local SKUs no longer in Linnworks' })
+  @ApiResponse({ status: 200, description: 'Inventory refresh result' })
+  async refreshInventory() {
+    const result = await this.linnworksInventoryRefreshService.refreshInventory();
+    return {
+      message: result.status === 'COMPLETED'
+        ? 'Inventory refresh complete'
+        : 'Inventory refresh failed',
       data: result,
     };
   }

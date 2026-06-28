@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
@@ -22,6 +23,7 @@ import { RequestIdMiddleware } from './common/middlewares/request-id.middleware'
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+    ScheduleModule.forRoot(),
     // Winston logger module (global - can be injected anywhere)
     WinstonModule.forRoot(winstonConfig),
     // Custom logger module (global - can be injected anywhere)

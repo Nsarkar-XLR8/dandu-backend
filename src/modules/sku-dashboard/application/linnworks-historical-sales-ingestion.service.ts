@@ -168,7 +168,7 @@ function collectMetricInputs(
   const channelSource = item.ItemSource ?? order.Source ?? 'OTHER';
   const country = normalizeCountry(order.cCountry, order.SubSource);
   const channel = mapChannelSource(channelSource, order.SubSource);
-  const currency = order.cCurrency ?? 'GBP';
+  const currency = 'USD';
   const revenue = Number(item.PricePerUnit ?? 0) * quantity;
   const key = [sku, channel, country ?? '', currency].join('|');
   const existing = bucket.get(key) ?? {

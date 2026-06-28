@@ -782,7 +782,7 @@ export class LinnworksApiClient {
       const channelSource = order.GeneralInfo?.Source ?? 'OTHER';
       const subSource = order.GeneralInfo?.SubSource ?? order.GeneralInfo?.SiteCode;
       const country = order.CustomerInfo?.Address?.Country ?? null;
-      const currency = order.TotalsInfo?.Currency ?? 'GBP';
+      const currency = 'USD';
 
       for (const item of order.Items ?? []) {
         addItem(order, item, item.ItemSource ?? channelSource, subSource, country, currency);

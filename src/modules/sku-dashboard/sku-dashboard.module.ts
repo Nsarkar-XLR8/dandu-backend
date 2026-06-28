@@ -15,6 +15,7 @@ import { GetDashboardMetricsService } from './application/get-dashboard-metrics.
 import { GetInventoryAlertsService } from './application/get-inventory-alerts.service';
 import { UpdateProductService } from './application/update-product.service';
 import { LinnworksSyncService } from './application/linnworks-sync.service';
+import { LinnworksInventoryRefreshService } from './application/linnworks-inventory-refresh.service';
 import { LinnworksHistoricalSalesIngestionService } from './application/linnworks-historical-sales-ingestion.service';
 import { SyncSchedulerService } from './application/sync-scheduler.service';
 
@@ -88,6 +89,12 @@ import { LinnworksApiClient } from './adapters/outbound/linnworks/linnworks-api.
       provide: LinnworksSyncService,
       useFactory: (client: LinnworksApiClient, repo: ISkuRepository) =>
         new LinnworksSyncService(client, repo),
+      inject: [LinnworksApiClient, SKU_REPOSITORY_TOKEN],
+    },
+    {
+      provide: LinnworksInventoryRefreshService,
+      useFactory: (client: LinnworksApiClient, repo: ISkuRepository) =>
+        new LinnworksInventoryRefreshService(client, repo),
       inject: [LinnworksApiClient, SKU_REPOSITORY_TOKEN],
     },
     {
